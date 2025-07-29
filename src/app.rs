@@ -100,7 +100,7 @@ impl App {
         let tick_rate = Duration::from_millis(250);
 
         loop {
-            terminal.draw(|f| game.render(f))?;
+            terminal.draw(|f| game.draw(f))?;
 
             let timeout = tick_rate
                 .checked_sub(last_tick.elapsed())

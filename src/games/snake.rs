@@ -2,11 +2,10 @@ use crate::core::{Game, GameAction};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Margin},
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
-    Frame,
+    layout::{Constraint, Layout, Margin, Rect},
+    style::{Color, Style, Stylize},
+    text::Line,
+    widgets::{Block, Clear, Paragraph},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -35,9 +34,10 @@ pub struct SnakeGame {
 
 impl SnakeGame {
     pub fn new() -> Self {
+        // Dimensions par défaut, seront mises à jour lors du premier rendu
         let width = 40;
         let height = 20;
-        let snake = vec![Position { x: 10, y: 10 }];
+        let snake = vec![Position { x: width / 2, y: height / 2 }];
         let food = Self::generate_food(&snake, width, height);
 
         Self {
@@ -50,6 +50,7 @@ impl SnakeGame {
             height,
         }
     }
+
 
     fn generate_food(snake: &[Position], width: u16, height: u16) -> Position {
         let mut rng = rand::rng();
@@ -110,6 +111,7 @@ impl SnakeGame {
     }
 }
 
+
 impl Game for SnakeGame {
     fn name(&self) -> &str {
         "snake"
@@ -118,7 +120,6 @@ impl Game for SnakeGame {
     fn description(&self) -> &str {
         "Classic Snake game"
     }
-
 
     fn handle_key(&mut self, key: KeyEvent) -> GameAction {
         if self.game_over {
@@ -161,156 +162,204 @@ impl Game for SnakeGame {
         GameAction::Continue
     }
 
-    fn render(&self, frame: &mut Frame) {
-        let size = frame.area();
+    fn draw(&self, frame: &mut ratatui::Frame) {
+        draw_snake_game(frame, self);
+    }
+}
 
-        // Fond coloré pour toute l'interface
-        let background = Block::default()
-            .style(Style::default().bg(Color::Rgb(20, 30, 20)));
-        frame.render_widget(background, size);
+fn draw_snake_game(frame: &mut ratatui::Frame, app: &SnakeGame) {
+    let area = frame.area();
+    
+    // Calculer les dimensions adaptatives avec protection overflow
+    let game_width = if area.width > 4 {
+        ((area.width - 4) / 2).clamp(20, 60)
+    } else {
+        20
+    };
+    let game_height = if area.height > 8 {
+        (area.height - 8).clamp(15, 30)
+    } else {
+        15
+    };
+    
+    // Layout principal
+    let chunks = Layout::vertical([
+        Constraint::Length(4), // Header avec score
+        Constraint::Min(0),    // Zone de jeu
+        Constraint::Length(3), // Footer avec instructions
+    ]).split(area);
 
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .margin(1)
-            .constraints([Constraint::Length(5), Constraint::Min(0)])
-            .split(size);
+    // Fond sombre élégant
+    let background = Block::new()
+        .style(Style::default().bg(Color::Rgb(15, 20, 25)));
+    frame.render_widget(background, area);
 
-        // Interface de score stylée
-        let score_text = vec![
-            Line::from(vec![
-                Span::styled("🐍 SNAKE GAME 🐍", 
-                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            ]),
-            Line::from(vec![
-                Span::styled("Score: ", Style::default().fg(Color::Yellow)),
-                Span::styled(format!("{}", self.score), 
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
-                Span::styled("   |   ", Style::default().fg(Color::Gray)),
-                Span::styled("⬆️⬇️⬅️➡️", Style::default().fg(Color::Cyan)),
-                Span::styled(" Move   ", Style::default().fg(Color::White)),
-                Span::styled("Q", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-                Span::styled(" Quit", Style::default().fg(Color::White)),
-            ]),
-        ];
+    // === HEADER ===
+    let header_text = vec![
+        Line::from(vec![
+            "🐍 ".green().bold(),
+            "SNAKE GAME".cyan().bold(),
+            " 🐍".green().bold(),
+        ]),
+        Line::from(vec![
+            "Score: ".yellow(),
+            format!("{}", app.score).white().bold(),
+            format!(" | Size: {}x{}", game_width, game_height).gray(),
+        ]),
+    ];
+    
+    let header = Paragraph::new(header_text)
+        .alignment(ratatui::layout::Alignment::Center)
+        .block(
+            Block::bordered()
+                .title(" Game Status ".white().bold())
+                .border_style(Style::new().cyan())
+                .style(Style::default().bg(Color::Rgb(25, 35, 45)))
+        );
+    frame.render_widget(header, chunks[0]);
 
-        let score_paragraph = Paragraph::new(score_text)
-            .alignment(Alignment::Center)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Green))
-                    .style(Style::default().bg(Color::Rgb(15, 25, 15)))
-            );
-        frame.render_widget(score_paragraph, chunks[0]);
+    // === ZONE DE JEU ===
+    let game_area = chunks[1];
+    let game_block = Block::bordered()
+        .title(" Playing Field ".green().bold())
+        .border_style(Style::new().green())
+        .style(Style::default().bg(Color::Rgb(10, 15, 20)));
+    frame.render_widget(game_block, game_area);
 
-        let game_area = chunks[1];
-        let game_block = Block::default()
-            .title(vec![
-                Span::styled("┤ ", Style::default().fg(Color::Green)),
-                Span::styled("GAME FIELD", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-                Span::styled(" ├", Style::default().fg(Color::Green)),
-            ])
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Green))
-            .style(Style::default().bg(Color::Rgb(10, 20, 10)));
-        frame.render_widget(game_block, game_area);
+    let inner_area = game_area.inner(Margin { vertical: 1, horizontal: 1 });
+    
+    // Calculer les cellules avec centrage et protection overflow
+    let cell_width = if inner_area.width > 0 && game_width > 0 {
+        (inner_area.width / game_width).max(1)
+    } else {
+        1
+    };
+    let cell_height = if inner_area.height > 0 && game_height > 0 {
+        (inner_area.height / game_height).max(1)
+    } else {
+        1
+    };
+    
+    let total_game_width = game_width * cell_width;
+    let total_game_height = game_height * cell_height;
+    
+    let offset_x = if inner_area.width >= total_game_width {
+        (inner_area.width - total_game_width) / 2
+    } else {
+        0
+    };
+    let offset_y = if inner_area.height >= total_game_height {
+        (inner_area.height - total_game_height) / 2
+    } else {
+        0
+    };
 
-        let inner_area = game_area.inner(Margin {
-            vertical: 1,
-            horizontal: 1,
-        });
-
-        let cell_width = inner_area.width / self.width;
-        let cell_height = inner_area.height / self.height;
-
-        // Dessiner le serpent avec des couleurs dégradées
-        for (i, segment) in self.snake.iter().enumerate() {
-            let x = inner_area.x + segment.x * cell_width;
-            let y = inner_area.y + segment.y * cell_height;
-            let cell_area = ratatui::layout::Rect {
+    // Dessiner le serpent avec style dégradé
+    for (i, segment) in app.snake.iter().enumerate() {
+        if segment.x < game_width && segment.y < game_height {
+            let x = inner_area.x + offset_x + segment.x * cell_width;
+            let y = inner_area.y + offset_y + segment.y * cell_height;
+            
+            let cell_area = Rect {
                 x,
                 y,
                 width: cell_width,
                 height: cell_height,
             };
             
-            // Couleur dégradée pour le serpent (tête plus claire)
-            let color = if i == 0 {
-                Color::Rgb(100, 255, 100) // Tête verte claire
+            // Couleurs dégradées pour un effet visuel
+            let (color, symbol) = if i == 0 {
+                (Color::Rgb(120, 255, 120), "██") // Tête verte claire
             } else {
-                Color::Rgb(50, 200, 50) // Corps vert plus foncé
+                let intensity = 180 - (i * 10).min(100) as u8;
+                (Color::Rgb(50, intensity, 50), "██") // Corps dégradé
             };
             
-            let snake_cell = Block::default()
-                .style(Style::default().bg(color));
+            let snake_cell = Paragraph::new(symbol)
+                .style(Style::default().fg(color));
             frame.render_widget(snake_cell, cell_area);
         }
+    }
 
-        // Nourriture avec animation visuelle
-        let food_x = inner_area.x + self.food.x * cell_width;
-        let food_y = inner_area.y + self.food.y * cell_height;
-        let food_area = ratatui::layout::Rect {
+    // Dessiner la nourriture avec animation
+    if app.food.x < game_width && app.food.y < game_height {
+        let food_x = inner_area.x + offset_x + app.food.x * cell_width;
+        let food_y = inner_area.y + offset_y + app.food.y * cell_height;
+        
+        let food_area = Rect {
             x: food_x,
             y: food_y,
             width: cell_width,
             height: cell_height,
         };
         
-        let food_cell = Block::default()
-            .style(Style::default().bg(Color::Rgb(255, 100, 100))); // Rouge vif
+        let food_cell = Paragraph::new("🍎")
+            .style(Style::default().fg(Color::Red).bold());
         frame.render_widget(food_cell, food_area);
+    }
 
-        // Game Over stylé
-        if self.game_over {
-            let popup_area = ratatui::layout::Rect {
-                x: size.width / 4,
-                y: size.height / 2 - 4,
-                width: size.width / 2,
-                height: 8,
-            };
+    // === FOOTER ===
+    let instructions = vec![
+        Line::from(vec![
+            "Arrow Keys".cyan().bold(),
+            " Move  ".white(),
+            "Q".red().bold(),
+            " Quit  ".white(),
+            if app.game_over { "R".green().bold() } else { "".white() },
+            if app.game_over { " Restart" } else { "" }.white(),
+        ]),
+    ];
+    
+    let footer = Paragraph::new(instructions)
+        .alignment(ratatui::layout::Alignment::Center)
+        .block(
+            Block::bordered()
+                .title(" Controls ".white().bold())
+                .border_style(Style::new().blue())
+                .style(Style::default().bg(Color::Rgb(25, 35, 45)))
+        );
+    frame.render_widget(footer, chunks[2]);
 
-            let game_over_text = vec![
-                Line::from(vec![
-                    Span::styled("╔════════════════════════╗", 
-                        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-                ]),
-                Line::from(vec![
-                    Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-                    Span::styled("      💀 GAME OVER 💀     ", 
-                        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-                    Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-                ]),
-                Line::from(vec![
-                    Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-                    Span::styled(format!("   Final Score: {:<8} ", self.score), 
-                        Style::default().fg(Color::White)),
-                    Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-                ]),
-                Line::from(vec![
-                    Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-                    Span::styled("                        ", Style::default()),
-                    Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-                ]),
-                Line::from(vec![
-                    Span::styled("║ ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-                    Span::styled("R", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-                    Span::styled(" Restart  ", Style::default().fg(Color::White)),
-                    Span::styled("Q", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-                    Span::styled(" Quit ", Style::default().fg(Color::White)),
-                    Span::styled(" ║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-                ]),
-                Line::from(vec![
-                    Span::styled("╚════════════════════════╝", 
-                        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-                ]),
-            ];
+    // === GAME OVER POPUP ===
+    if app.game_over {
+        let popup_width = 40.min(area.width);
+        let popup_height = 8.min(area.height);
+        let popup_area = Rect {
+            x: if area.width >= popup_width { (area.width - popup_width) / 2 } else { 0 },
+            y: if area.height >= popup_height { (area.height - popup_height) / 2 } else { 0 },
+            width: popup_width,
+            height: popup_height,
+        };
 
-            let game_over_paragraph = Paragraph::new(game_over_text)
-                .alignment(Alignment::Center)
-                .style(Style::default().bg(Color::Black));
+        // Fond transparent
+        frame.render_widget(Clear, popup_area);
 
-            frame.render_widget(Clear, popup_area);
-            frame.render_widget(game_over_paragraph, popup_area);
-        }
+        let game_over_text = vec![
+            Line::from(""),
+            Line::from("💀 GAME OVER 💀".red().bold()),
+            Line::from(""),
+            Line::from(vec![
+                "Final Score: ".white(),
+                format!("{}", app.score).yellow().bold(),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                "Press ".gray(),
+                "R".green().bold(),
+                " to restart or ".gray(),
+                "Q".red().bold(),
+                " to quit".gray(),
+            ]),
+        ];
+
+        let popup = Paragraph::new(game_over_text)
+            .alignment(ratatui::layout::Alignment::Center)
+            .block(
+                Block::bordered()
+                    .title(" Game Over ".red().bold())
+                    .border_style(Style::new().red().bold())
+                    .style(Style::default().bg(Color::Black))
+            );
+        frame.render_widget(popup, popup_area);
     }
 }

@@ -1,4 +1,5 @@
 use crossterm::event::KeyEvent;
+use ratatui::Frame;
 use std::error::Error;
 
 pub type GameResult = Result<(), Box<dyn Error>>;
@@ -15,7 +16,7 @@ pub trait Game {
     fn description(&self) -> &str;
     fn handle_key(&mut self, key: KeyEvent) -> GameAction;
     fn update(&mut self) -> GameAction;
-    fn render(&self, frame: &mut ratatui::Frame);
+    fn draw(&self, frame: &mut Frame);
 }
 
 #[derive(Debug, Clone)]
