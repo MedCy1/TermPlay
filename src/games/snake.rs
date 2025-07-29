@@ -4,8 +4,8 @@ use rand::Rng;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin},
     style::{Color, Modifier, Style},
-    text::Line,
-    widgets::{Block, Borders, Paragraph},
+    text::{Line, Span},
+    widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
 
@@ -164,23 +164,55 @@ impl Game for SnakeGame {
     fn render(&self, frame: &mut Frame) {
         let size = frame.area();
 
+        // Fond coloré pour toute l'interface
+        let background = Block::default()
+            .style(Style::default().bg(Color::Rgb(20, 30, 20)));
+        frame.render_widget(background, size);
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(0)])
+            .margin(1)
+            .constraints([Constraint::Length(5), Constraint::Min(0)])
             .split(size);
 
-        let score_text = format!("Score: {} | Controls: ↑↓←→ | q: Quit", self.score);
+        // Interface de score stylée
+        let score_text = vec![
+            Line::from(vec![
+                Span::styled("🐍 SNAKE GAME 🐍", 
+                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(vec![
+                Span::styled("Score: ", Style::default().fg(Color::Yellow)),
+                Span::styled(format!("{}", self.score), 
+                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled("   |   ", Style::default().fg(Color::Gray)),
+                Span::styled("⬆️⬇️⬅️➡️", Style::default().fg(Color::Cyan)),
+                Span::styled(" Move   ", Style::default().fg(Color::White)),
+                Span::styled("Q", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                Span::styled(" Quit", Style::default().fg(Color::White)),
+            ]),
+        ];
+
         let score_paragraph = Paragraph::new(score_text)
-            .style(Style::default().fg(Color::White))
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Green))
+                    .style(Style::default().bg(Color::Rgb(15, 25, 15)))
+            );
         frame.render_widget(score_paragraph, chunks[0]);
 
         let game_area = chunks[1];
         let game_block = Block::default()
-            .title("🐍 Snake")
+            .title(vec![
+                Span::styled("┤ ", Style::default().fg(Color::Green)),
+                Span::styled("GAME FIELD", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled(" ├", Style::default().fg(Color::Green)),
+            ])
             .borders(Borders::ALL)
-            .style(Style::default().fg(Color::Green));
+            .border_style(Style::default().fg(Color::Green))
+            .style(Style::default().bg(Color::Rgb(10, 20, 10)));
         frame.render_widget(game_block, game_area);
 
         let inner_area = game_area.inner(Margin {
@@ -191,7 +223,8 @@ impl Game for SnakeGame {
         let cell_width = inner_area.width / self.width;
         let cell_height = inner_area.height / self.height;
 
-        for segment in &self.snake {
+        // Dessiner le serpent avec des couleurs dégradées
+        for (i, segment) in self.snake.iter().enumerate() {
             let x = inner_area.x + segment.x * cell_width;
             let y = inner_area.y + segment.y * cell_height;
             let cell_area = ratatui::layout::Rect {
@@ -201,11 +234,19 @@ impl Game for SnakeGame {
                 height: cell_height,
             };
             
+            // Couleur dégradée pour le serpent (tête plus claire)
+            let color = if i == 0 {
+                Color::Rgb(100, 255, 100) // Tête verte claire
+            } else {
+                Color::Rgb(50, 200, 50) // Corps vert plus foncé
+            };
+            
             let snake_cell = Block::default()
-                .style(Style::default().bg(Color::Green));
+                .style(Style::default().bg(color));
             frame.render_widget(snake_cell, cell_area);
         }
 
+        // Nourriture avec animation visuelle
         let food_x = inner_area.x + self.food.x * cell_width;
         let food_y = inner_area.y + self.food.y * cell_height;
         let food_area = ratatui::layout::Rect {
@@ -216,33 +257,59 @@ impl Game for SnakeGame {
         };
         
         let food_cell = Block::default()
-            .style(Style::default().bg(Color::Red));
+            .style(Style::default().bg(Color::Rgb(255, 100, 100))); // Rouge vif
         frame.render_widget(food_cell, food_area);
 
+        // Game Over stylé
         if self.game_over {
             let popup_area = ratatui::layout::Rect {
                 x: size.width / 4,
-                y: size.height / 2 - 2,
+                y: size.height / 2 - 4,
                 width: size.width / 2,
-                height: 4,
+                height: 8,
             };
 
             let game_over_text = vec![
-                Line::from("Game Over!"),
-                Line::from(format!("Final Score: {}", self.score)),
-                Line::from("Press 'r' to restart or 'q' to quit"),
+                Line::from(vec![
+                    Span::styled("╔════════════════════════╗", 
+                        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from(vec![
+                    Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                    Span::styled("      💀 GAME OVER 💀     ", 
+                        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                    Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from(vec![
+                    Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                    Span::styled(format!("   Final Score: {:<8} ", self.score), 
+                        Style::default().fg(Color::White)),
+                    Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from(vec![
+                    Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                    Span::styled("                        ", Style::default()),
+                    Span::styled("║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from(vec![
+                    Span::styled("║ ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                    Span::styled("R", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                    Span::styled(" Restart  ", Style::default().fg(Color::White)),
+                    Span::styled("Q", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                    Span::styled(" Quit ", Style::default().fg(Color::White)),
+                    Span::styled(" ║", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                ]),
+                Line::from(vec![
+                    Span::styled("╚════════════════════════╝", 
+                        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                ]),
             ];
 
             let game_over_paragraph = Paragraph::new(game_over_text)
-                .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
                 .alignment(Alignment::Center)
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .style(Style::default().bg(Color::Black)),
-                );
+                .style(Style::default().bg(Color::Black));
 
-            frame.render_widget(ratatui::widgets::Clear, popup_area);
+            frame.render_widget(Clear, popup_area);
             frame.render_widget(game_over_paragraph, popup_area);
         }
     }

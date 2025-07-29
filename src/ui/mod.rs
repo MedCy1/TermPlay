@@ -72,40 +72,92 @@ impl MainMenu {
     pub fn render(&mut self, frame: &mut Frame) {
         let size = frame.area();
 
+        // Créer un dégradé de fond
+        let background = Block::default()
+            .style(Style::default().bg(Color::Rgb(25, 25, 35)));
+        frame.render_widget(background, size);
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .margin(2)
+            .margin(1)
             .constraints([
-                Constraint::Length(3),
-                Constraint::Min(0),
-                Constraint::Length(3),
+                Constraint::Length(7),  // Zone titre plus grande
+                Constraint::Min(0),     // Zone jeux
+                Constraint::Length(4),  // Zone instructions
             ])
             .split(size);
 
-        let title = Paragraph::new("🎮 TermPlay - Terminal Mini-Games")
-            .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        // Titre avec style ASCII art
+        let title_text = vec![
+            Line::from(vec![
+                Span::styled("╔═══════════════════════════════════════════════════════════════╗", 
+                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(vec![
+                Span::styled("║", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled("                     🎮 TERMPLAY 🎮                          ", 
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled("║", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(vec![
+                Span::styled("║", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled("              Terminal Mini-Games Collection                  ", 
+                    Style::default().fg(Color::Magenta)),
+                Span::styled("║", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(vec![
+                Span::styled("╚═══════════════════════════════════════════════════════════════╝", 
+                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            ]),
+        ];
+
+        let title = Paragraph::new(title_text)
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL));
+            .style(Style::default().bg(Color::Rgb(15, 15, 25)));
         frame.render_widget(title, chunks[0]);
 
+        // Liste des jeux avec style amélioré
         let items: Vec<ListItem> = self
             .games
             .iter()
-            .map(|game| {
-                let content = vec![Line::from(Span::styled(
-                    format!("{} - {}", game.name, game.description),
-                    Style::default(),
-                ))];
+            .enumerate()
+            .map(|(_i, game)| {
+                let icon = match game.name.as_str() {
+                    "snake" => "🐍",
+                    "tetris" => "🧩",
+                    "pong" => "🏓",
+                    _ => "🎮",
+                };
+                
+                let content = vec![Line::from(vec![
+                    Span::styled(format!("  {} ", icon), 
+                        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                    Span::styled(format!("{:<12}", game.name.to_uppercase()), 
+                        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                    Span::styled(" │ ", Style::default().fg(Color::Gray)),
+                    Span::styled(&game.description, 
+                        Style::default().fg(Color::LightBlue)),
+                ])];
                 ListItem::new(content)
             })
             .collect();
 
         let games_list = List::new(items)
-            .block(Block::default().title("Select a game").borders(Borders::ALL))
+            .block(
+                Block::default()
+                    .title(vec![
+                        Span::styled("┤ ", Style::default().fg(Color::Cyan)),
+                        Span::styled("SELECT GAME", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                        Span::styled(" ├", Style::default().fg(Color::Cyan)),
+                    ])
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Cyan))
+                    .style(Style::default().bg(Color::Rgb(15, 15, 25)))
+            )
             .style(Style::default().fg(Color::White))
             .highlight_style(
                 Style::default()
-                    .bg(Color::Yellow)
+                    .bg(Color::Rgb(0, 150, 200))
                     .fg(Color::Black)
                     .add_modifier(Modifier::BOLD),
             )
@@ -113,10 +165,31 @@ impl MainMenu {
 
         frame.render_stateful_widget(games_list, chunks[1], &mut self.list_state);
 
-        let instructions = Paragraph::new("↑/↓: Navigate | Enter: Select | q: Quit")
-            .style(Style::default().fg(Color::Gray))
+        // Instructions avec style amélioré
+        let instructions_text = vec![
+            Line::from(vec![
+                Span::styled("⬆️⬇️", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                Span::styled(" Navigate  ", Style::default().fg(Color::White)),
+                Span::styled("⏎", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled(" Select  ", Style::default().fg(Color::White)),
+                Span::styled("Q", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                Span::styled(" Quit", Style::default().fg(Color::White)),
+            ]),
+            Line::from(vec![
+                Span::styled("Press ", Style::default().fg(Color::Gray)),
+                Span::styled("Enter", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled(" to start your adventure!", Style::default().fg(Color::Gray)),
+            ]),
+        ];
+
+        let instructions = Paragraph::new(instructions_text)
             .alignment(Alignment::Center)
-            .block(Block::default().borders(Borders::ALL));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::Green))
+                    .style(Style::default().bg(Color::Rgb(15, 15, 25)))
+            );
         frame.render_widget(instructions, chunks[2]);
     }
 }
