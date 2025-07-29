@@ -16,7 +16,7 @@ pub trait Game {
     fn description(&self) -> &str;
     fn handle_key(&mut self, key: KeyEvent) -> GameAction;
     fn update(&mut self) -> GameAction;
-    fn draw(&self, frame: &mut Frame);
+    fn draw(&mut self, frame: &mut Frame);
 }
 
 #[derive(Debug, Clone)]
