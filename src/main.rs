@@ -2,7 +2,7 @@ mod app;
 mod cli;
 mod core;
 mod games;
-mod ui;
+mod menu;
 
 use app::App;
 use cli::{Cli, Commands};

@@ -1,8 +1,8 @@
 use crate::core::{Game, GameAction, GameResult};
 use crate::games::GameRegistry;
-use crate::ui::MainMenu;
+use crate::menu::MainMenu;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -41,18 +41,22 @@ impl App {
         let mut menu = MainMenu::new(self.registry.list_games());
         
         loop {
-            terminal.draw(|f| menu.render(f))?;
+            terminal.draw(|f| menu.draw(f))?;
 
             if event::poll(Duration::from_millis(100))? {
                 if let Event::Key(key) = event::read()? {
-                    match menu.handle_key(key) {
-                        GameAction::Quit => break,
-                        GameAction::Continue => continue,
-                        GameAction::GameOver => {
-                            if let Some(selected_game) = menu.get_selected_game() {
-                                if let Some(mut game) = self.registry.get_game(selected_game) {
-                                    self.run_game_loop(&mut game, &mut terminal)?;
-                                    menu = MainMenu::new(self.registry.list_games());
+                    // Ne traiter que les événements de pression de touche pour éviter les répétitions
+                    if key.kind == KeyEventKind::Press {
+                        match menu.handle_key(key) {
+                            GameAction::Quit => break,
+                            GameAction::Continue => continue,
+                            GameAction::GameOver => {
+                                if let Some(selected_game) = menu.get_selected_game() {
+                                    if let Some(mut game) = self.registry.get_game(selected_game) {
+                                        self.run_game_loop(&mut game, &mut terminal)?;
+                                        // Recréer le menu après le jeu
+                                        menu = MainMenu::new(self.registry.list_games());
+                                    }
                                 }
                             }
                         }
@@ -108,10 +112,13 @@ impl App {
 
             if crossterm::event::poll(timeout)? {
                 if let Event::Key(key) = event::read()? {
-                    match game.handle_key(key) {
-                        GameAction::Quit => break,
-                        GameAction::GameOver => break,
-                        GameAction::Continue => {}
+                    // Ne traiter que les événements de pression de touche
+                    if key.kind == KeyEventKind::Press {
+                        match game.handle_key(key) {
+                            GameAction::Quit => break,
+                            GameAction::GameOver => break,
+                            GameAction::Continue => {}
+                        }
                     }
                 }
             }
