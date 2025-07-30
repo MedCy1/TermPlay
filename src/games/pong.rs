@@ -44,7 +44,7 @@ impl Ball {
     fn new(width: f32, height: f32) -> Self {
         let mut rng = rand::rng();
         let angle = rng.random_range(-std::f32::consts::PI/4.0..std::f32::consts::PI/4.0);
-        let speed = 0.4;
+        let speed = 0.8;
         let direction = if rng.random_bool(0.5) { 1.0 } else { -1.0 };
         
         Self {
@@ -84,7 +84,7 @@ impl Paddle {
         Self {
             position: Position { x, y },
             height: 4.0,
-            speed: 1.0,
+            speed: 2.5,
         }
     }
 
@@ -122,6 +122,7 @@ pub struct PongGame {
     
     // IA
     ai_difficulty: f32, // Entre 0.0 et 1.0
+    
 }
 
 impl PongGame {
@@ -357,7 +358,7 @@ impl Game for PongGame {
     }
 
     fn tick_rate(&self) -> Duration {
-        Duration::from_millis(35) // Très fluide
+        Duration::from_millis(25) // Très fluide et réactif
     }
 }
 
