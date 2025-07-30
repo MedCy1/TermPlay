@@ -2,6 +2,7 @@ use crate::core::{Game, GameInfo};
 use std::collections::HashMap;
 
 pub mod snake;
+pub mod tetris;
 
 pub type GameConstructor = Box<dyn Fn() -> Box<dyn Game>>;
 
@@ -46,6 +47,11 @@ impl GameRegistry {
         let snake_game = snake::SnakeGame::new();
         self.register(snake_game.name(), snake_game.description(), || {
             Box::new(snake::SnakeGame::new())
+        });
+
+        let tetris_game = tetris::TetrisGame::new();
+        self.register(tetris_game.name(), tetris_game.description(), || {
+            Box::new(tetris::TetrisGame::new())
         });
     }
 }
