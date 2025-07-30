@@ -110,9 +110,13 @@ impl MainMenu {
         let max_items = match self.current_menu {
             MenuState::Main => self.main_options.len(),
             MenuState::Games => self.games_list.len(),
-            MenuState::Settings => 3, // Placeholder
+            MenuState::Settings => 3,
             MenuState::About => 1,
         };
+
+        if max_items == 0 {
+            return;
+        }
 
         self.selected_index = (self.selected_index + 1) % max_items;
         self.list_state.select(Some(self.selected_index));
@@ -125,6 +129,10 @@ impl MainMenu {
             MenuState::Settings => 3,
             MenuState::About => 1,
         };
+
+        if max_items == 0 {
+            return;
+        }
 
         self.selected_index = if self.selected_index == 0 {
             max_items - 1
@@ -154,14 +162,12 @@ impl MainMenu {
             }
             MenuState::Games => {
                 if let Some(_game) = self.games_list.get(self.selected_index) {
-                    // Retourner GameOver avec le nom du jeu pour le lancer
-                    GameAction::GameOver // On utilisera GameOver comme signal pour lancer le jeu
+                    GameAction::GameOver
                 } else {
                     GameAction::Continue
                 }
             }
             MenuState::Settings | MenuState::About => {
-                // Pour l'instant, juste revenir au menu principal
                 self.go_back();
                 GameAction::Continue
             }
@@ -187,45 +193,30 @@ impl MainMenu {
     }
 }
 
-fn draw_main_menu(frame: &mut Frame, menu: &MainMenu) {
+fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
     let area = frame.area();
 
-    // Fond dégradé élégant
+    // Fond sombre élégant
     let background = Block::new()
-        .style(Style::default().bg(Color::Rgb(10, 15, 25)));
+        .style(Style::default().bg(Color::Rgb(15, 20, 25)));
     frame.render_widget(background, area);
 
-    // Layout principal
+    // Layout simple et propre
     let chunks = Layout::vertical([
-        Constraint::Length(8),  // Header
-        Constraint::Min(0),     // Contenu principal
-        Constraint::Length(4),  // Footer
+        Constraint::Length(4), // Header
+        Constraint::Min(0),    // Zone principale
+        Constraint::Length(3), // Footer
     ]).split(area);
 
     // === HEADER ===
-    draw_header(frame, chunks[0], &menu.current_menu);
-
-    // === CONTENU PRINCIPAL ===
-    match menu.current_menu {
-        MenuState::Main => draw_main_options(frame, chunks[1], menu),
-        MenuState::Games => draw_games_menu(frame, chunks[1], menu),
-        MenuState::Settings => draw_settings_menu(frame, chunks[1]),
-        MenuState::About => draw_about_menu(frame, chunks[1]),
-    }
-
-    // === FOOTER ===
-    draw_footer(frame, chunks[2], &menu.current_menu);
-}
-
-fn draw_header(frame: &mut Frame, area: Rect, current_menu: &MenuState) {
-    let title = match current_menu {
+    let title = match app.current_menu {
         MenuState::Main => "TERMPLAY",
         MenuState::Games => "GAMES",
-        MenuState::Settings => "SETTINGS", 
+        MenuState::Settings => "SETTINGS",
         MenuState::About => "ABOUT",
     };
 
-    let subtitle = match current_menu {
+    let subtitle = match app.current_menu {
         MenuState::Main => "Terminal Mini-Games Collection",
         MenuState::Games => "Choose your adventure",
         MenuState::Settings => "Configure your experience",
@@ -233,34 +224,58 @@ fn draw_header(frame: &mut Frame, area: Rect, current_menu: &MenuState) {
     };
 
     let header_text = vec![
-        Line::from(""),
         Line::from(vec![
-            "╔════════════════════════════════════════════════════════════════╗".cyan().bold(),
+            "🎮 ".cyan().bold(),
+            title.yellow().bold(),
+            " 🎮".cyan().bold(),
         ]),
-        Line::from(vec![
-            "║".cyan().bold(),
-            format!("                     🎮 {} 🎮                     ", title).yellow().bold(),
-            "║".cyan().bold(),
-        ]),
-        Line::from(vec![
-            "║".cyan().bold(),
-            format!("           {}            ", subtitle).magenta(),
-            "║".cyan().bold(),
-        ]),
-        Line::from(vec![
-            "╚════════════════════════════════════════════════════════════════╝".cyan().bold(),
-        ]),
-        Line::from(""),
+        Line::from(subtitle.magenta()),
     ];
 
     let header = Paragraph::new(header_text)
         .alignment(Alignment::Center)
-        .style(Style::default().bg(Color::Rgb(15, 25, 35)));
-    frame.render_widget(header, area);
+        .block(
+            Block::bordered()
+                .title(" Game Status ".white().bold())
+                .border_style(Style::new().cyan())
+                .style(Style::default().bg(Color::Rgb(25, 35, 45)))
+        );
+    frame.render_widget(header, chunks[0]);
+
+    // === ZONE PRINCIPALE ===
+    match app.current_menu {
+        MenuState::Main => draw_main_options(frame, chunks[1], app),
+        MenuState::Games => draw_games_menu(frame, chunks[1], app),
+        MenuState::Settings => draw_settings_menu(frame, chunks[1]),
+        MenuState::About => draw_about_menu(frame, chunks[1]),
+    }
+
+    // === FOOTER ===
+    let controls = match app.current_menu {
+        MenuState::Main => "Arrow Keys Move • Enter Select • Q Quit",
+        _ => "Arrow Keys Move • Enter Select • Esc/Q Back",
+    };
+
+    let footer_text = vec![
+        Line::from(vec![
+            "Controls: ".gray(),
+            controls.white().bold(),
+        ]),
+    ];
+
+    let footer = Paragraph::new(footer_text)
+        .alignment(Alignment::Center)
+        .block(
+            Block::bordered()
+                .title(" Controls ".white().bold())
+                .border_style(Style::new().blue())
+                .style(Style::default().bg(Color::Rgb(25, 35, 45)))
+        );
+    frame.render_widget(footer, chunks[2]);
 }
 
-fn draw_main_options(frame: &mut Frame, area: Rect, menu: &MainMenu) {
-    let items: Vec<ListItem> = menu
+fn draw_main_options(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
+    let items: Vec<ListItem> = app
         .main_options
         .iter()
         .map(|option| {
@@ -278,8 +293,8 @@ fn draw_main_options(frame: &mut Frame, area: Rect, menu: &MainMenu) {
         .block(
             Block::bordered()
                 .title(" Main Menu ".white().bold())
-                .border_style(Style::new().cyan())
-                .style(Style::default().bg(Color::Rgb(15, 20, 30)))
+                .border_style(Style::new().green())
+                .style(Style::default().bg(Color::Rgb(10, 15, 20)))
         )
         .style(Style::default().fg(Color::White))
         .highlight_style(
@@ -290,11 +305,11 @@ fn draw_main_options(frame: &mut Frame, area: Rect, menu: &MainMenu) {
         )
         .highlight_symbol("▶ ");
 
-    frame.render_stateful_widget(list, area, &mut menu.list_state.clone());
+    frame.render_stateful_widget(list, area, &mut app.list_state);
 }
 
-fn draw_games_menu(frame: &mut Frame, area: Rect, menu: &MainMenu) {
-    let items: Vec<ListItem> = menu
+fn draw_games_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
+    let items: Vec<ListItem> = app
         .games_list
         .iter()
         .map(|game| {
@@ -320,7 +335,7 @@ fn draw_games_menu(frame: &mut Frame, area: Rect, menu: &MainMenu) {
             Block::bordered()
                 .title(" Available Games ".green().bold())
                 .border_style(Style::new().green())
-                .style(Style::default().bg(Color::Rgb(15, 25, 15)))
+                .style(Style::default().bg(Color::Rgb(10, 15, 20)))
         )
         .style(Style::default().fg(Color::White))
         .highlight_style(
@@ -331,7 +346,7 @@ fn draw_games_menu(frame: &mut Frame, area: Rect, menu: &MainMenu) {
         )
         .highlight_symbol("▶ ");
 
-    frame.render_stateful_widget(list, area, &mut menu.list_state.clone());
+    frame.render_stateful_widget(list, area, &mut app.list_state);
 }
 
 fn draw_settings_menu(frame: &mut Frame, area: Rect) {
@@ -352,7 +367,7 @@ fn draw_settings_menu(frame: &mut Frame, area: Rect) {
             Block::bordered()
                 .title(" Settings ".yellow().bold())
                 .border_style(Style::new().yellow())
-                .style(Style::default().bg(Color::Rgb(25, 20, 15)))
+                .style(Style::default().bg(Color::Rgb(10, 15, 20)))
         );
     frame.render_widget(settings, area);
 }
@@ -366,7 +381,7 @@ fn draw_about_menu(frame: &mut Frame, area: Rect) {
         Line::from("built with Rust and Ratatui."),
         Line::from(""),
         Line::from("Features:".yellow().bold()),
-        Line::from("• Classic game with modern graphics"),
+        Line::from("• Classic games with modern graphics"),
         Line::from("• Responsive design that adapts to terminal size"),
         Line::from("• Extensible architecture for adding new games"),
         Line::from(""),
@@ -379,32 +394,7 @@ fn draw_about_menu(frame: &mut Frame, area: Rect) {
             Block::bordered()
                 .title(" About TermPlay ".cyan().bold())
                 .border_style(Style::new().cyan())
-                .style(Style::default().bg(Color::Rgb(15, 20, 25)))
+                .style(Style::default().bg(Color::Rgb(10, 15, 20)))
         );
     frame.render_widget(about, area);
-}
-
-fn draw_footer(frame: &mut Frame, area: Rect, current_menu: &MenuState) {
-    let controls = match current_menu {
-        MenuState::Main => "↑/↓ Navigate • Enter Select • Q Quit",
-        _ => "↑/↓ Navigate • Enter Select • Esc/Q Back",
-    };
-
-    let footer_text = vec![
-        Line::from(vec![
-            "Controls: ".gray(),
-            controls.white().bold(),
-        ]),
-        Line::from("Press Enter to select, Esc to go back".gray()),
-    ];
-
-    let footer = Paragraph::new(footer_text)
-        .alignment(Alignment::Center)
-        .block(
-            Block::bordered()
-                .title(" Controls ".blue().bold())
-                .border_style(Style::new().blue())
-                .style(Style::default().bg(Color::Rgb(20, 25, 35)))
-        );
-    frame.render_widget(footer, area);
 }
