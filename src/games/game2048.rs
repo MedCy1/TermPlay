@@ -500,8 +500,54 @@ fn draw_2048_game(frame: &mut ratatui::Frame, game: &Game2048) {
         );
     frame.render_widget(footer, chunks[2]);
     
+    // === GAME OVER POPUP ===
+    if game.game_over {
+        let popup_width = 50.min(area.width);
+        let popup_height = 10.min(area.height);
+        let popup_area = Rect {
+            x: if area.width >= popup_width { (area.width - popup_width) / 2 } else { 0 },
+            y: if area.height >= popup_height { (area.height - popup_height) / 2 } else { 0 },
+            width: popup_width,
+            height: popup_height,
+        };
+
+        frame.render_widget(Clear, popup_area);
+
+        let game_over_text = vec![
+            Line::from(""),
+            Line::from("💀 GAME OVER 💀".red().bold()),
+            Line::from(""),
+            Line::from(vec![
+                "Final Score: ".white(),
+                format!("{}", game.score).yellow().bold(),
+            ]),
+            Line::from(vec![
+                "Best Score: ".white(),
+                format!("{}", game.best_score).green().bold(),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                "Press ".gray(),
+                "R".green().bold(),
+                " to restart or ".gray(),
+                "Q".red().bold(),
+                " to quit".gray(),
+            ]),
+        ];
+
+        let popup = Paragraph::new(game_over_text)
+            .alignment(ratatui::layout::Alignment::Center)
+            .block(
+                Block::bordered()
+                    .title(" Game Over ".red().bold())
+                    .border_style(Style::new().red().bold())
+                    .style(Style::default().bg(Color::Black))
+            );
+
+        frame.render_widget(popup, popup_area);
+    }
     // === POPUP DE VICTOIRE ===
-    if game.won && !game.game_over {
+    else if game.won {
         let popup_width = 50.min(area.width);
         let popup_height = 10.min(area.height);
         let popup_x = (area.width.saturating_sub(popup_width)) / 2;
