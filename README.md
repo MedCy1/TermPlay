@@ -8,8 +8,6 @@ A beautiful collection of **terminal mini-games** built with Rust, featuring mod
 
 ## 📸 Screenshots
 
-<div align="center">
-
 ### 🎮 Main Menu
 ![Main Menu](docs/menu.png)
 
@@ -18,8 +16,6 @@ A beautiful collection of **terminal mini-games** built with Rust, featuring mod
 
 ### 🧩 Tetris Game
 ![Tetris Game](docs/tetris.png)
-
-</div>
 
 ## ✨ Features
 
