@@ -44,7 +44,7 @@ impl Ball {
     fn new(width: f32, height: f32) -> Self {
         let mut rng = rand::rng();
         let angle = rng.random_range(-std::f32::consts::PI/4.0..std::f32::consts::PI/4.0);
-        let speed = 0.8;
+        let speed = 0.4;
         let direction = if rng.random_bool(0.5) { 1.0 } else { -1.0 };
         
         Self {
@@ -357,7 +357,7 @@ impl Game for PongGame {
     }
 
     fn tick_rate(&self) -> Duration {
-        Duration::from_millis(50) // Rapide pour une bonne fluidité
+        Duration::from_millis(35) // Très fluide
     }
 }
 
@@ -467,9 +467,9 @@ fn draw_game_field(frame: &mut ratatui::Frame, area: Rect, game: &mut PongGame) 
     let game_area = chunks[1];
     let inner_area = game_area.inner(Margin { vertical: 1, horizontal: 2 });
     
-    // Calculer les dimensions du terrain de jeu
-    let field_width = (inner_area.width / 2).max(30) as f32; // Division par 2 pour des cellules de 2 chars
-    let field_height = inner_area.height.max(15) as f32;
+    // Calculer les dimensions du terrain de jeu (utilise la taille disponible avec des limites)
+    let field_width = (inner_area.width.min(120).max(40)) as f32; // Largeur max 120, min 40
+    let field_height = (inner_area.height.min(30).max(15)) as f32; // Hauteur max 30, min 15
     
     // Mettre à jour les dimensions du jeu
     game.update_dimensions(field_width, field_height);
@@ -515,28 +515,41 @@ fn draw_game_field(frame: &mut ratatui::Frame, area: Rect, game: &mut PongGame) 
         .style(Style::default().bg(Color::Rgb(10, 15, 20)));
     frame.render_widget(game_block, game_area);
 
+    // Créer une zone centrée pour le terrain de jeu
+    let game_width = field_width as u16;
+    let game_height = field_height as u16;
+    let start_x = inner_area.x + (inner_area.width.saturating_sub(game_width)) / 2;
+    let start_y = inner_area.y + (inner_area.height.saturating_sub(game_height)) / 2;
+    
+    let playing_area = Rect {
+        x: start_x,
+        y: start_y,
+        width: game_width,
+        height: game_height,
+    };
+    
     // Dessiner le terrain avec une grille subtile
-    for y in 0..(field_height as u16) {
-        for x in 0..(field_width as u16) {
-            let cell_x = inner_area.x + (x * 2);
-            let cell_y = inner_area.y + y;
+    for y in 0..game_height {
+        for x in 0..game_width {
+            let cell_x = playing_area.x + x;
+            let cell_y = playing_area.y + y;
             
-            if cell_x + 1 < inner_area.x + inner_area.width && cell_y < inner_area.y + inner_area.height {
+            if cell_x < playing_area.x + playing_area.width && cell_y < playing_area.y + playing_area.height {
                 let cell_area = Rect {
                     x: cell_x,
                     y: cell_y,
-                    width: 2,
+                    width: 1,
                     height: 1,
                 };
                 
                 // Ligne centrale en pointillés
-                let symbol = if x == (field_width as u16 / 2) && y % 2 == 0 {
-                    "││"
+                let symbol = if x == (field_width as u16 / 2) && y % 3 == 0 {
+                    "┃"
                 } else {
-                    "  "
+                    " "
                 };
                 
-                let color = if x == (field_width as u16 / 2) && y % 2 == 0 {
+                let color = if x == (field_width as u16 / 2) && y % 3 == 0 {
                     Color::Rgb(100, 100, 100)
                 } else {
                     Color::Rgb(20, 25, 30)
@@ -551,56 +564,56 @@ fn draw_game_field(frame: &mut ratatui::Frame, area: Rect, game: &mut PongGame) 
 
     // Dessiner le paddle gauche (joueur 1)
     for i in 0..(game.player1.height as u16) {
-        let paddle_x = inner_area.x + (game.player1.position.x as u16 * 2);
-        let paddle_y = inner_area.y + (game.player1.position.y as u16) + i;
+        let paddle_x = playing_area.x + game.player1.position.x as u16;
+        let paddle_y = playing_area.y + (game.player1.position.y as u16) + i;
         
-        if paddle_x + 1 < inner_area.x + inner_area.width && paddle_y < inner_area.y + inner_area.height {
+        if paddle_x < playing_area.x + playing_area.width && paddle_y < playing_area.y + playing_area.height {
             let paddle_area = Rect {
                 x: paddle_x,
                 y: paddle_y,
-                width: 2,
+                width: 1,
                 height: 1,
             };
             
-            let paddle_cell = Paragraph::new("██")
-                .style(Style::default().fg(Color::Blue).bold());
+            let paddle_cell = Paragraph::new("█")
+                .style(Style::default().fg(Color::LightBlue).bold());
             frame.render_widget(paddle_cell, paddle_area);
         }
     }
 
     // Dessiner le paddle droit (joueur 2 ou IA)
     for i in 0..(game.player2.height as u16) {
-        let paddle_x = inner_area.x + (game.player2.position.x as u16 * 2);
-        let paddle_y = inner_area.y + (game.player2.position.y as u16) + i;
+        let paddle_x = playing_area.x + game.player2.position.x as u16;
+        let paddle_y = playing_area.y + (game.player2.position.y as u16) + i;
         
-        if paddle_x + 1 < inner_area.x + inner_area.width && paddle_y < inner_area.y + inner_area.height {
+        if paddle_x < playing_area.x + playing_area.width && paddle_y < playing_area.y + playing_area.height {
             let paddle_area = Rect {
                 x: paddle_x,
                 y: paddle_y,
-                width: 2,
+                width: 1,
                 height: 1,
             };
             
-            let paddle_cell = Paragraph::new("██")
-                .style(Style::default().fg(Color::Red).bold());
+            let paddle_cell = Paragraph::new("█")
+                .style(Style::default().fg(Color::LightRed).bold());
             frame.render_widget(paddle_cell, paddle_area);
         }
     }
 
     // Dessiner la balle
-    let ball_x = inner_area.x + (game.ball.position.x as u16 * 2);
-    let ball_y = inner_area.y + game.ball.position.y as u16;
+    let ball_x = playing_area.x + game.ball.position.x as u16;
+    let ball_y = playing_area.y + game.ball.position.y as u16;
     
-    if ball_x + 1 < inner_area.x + inner_area.width && ball_y < inner_area.y + inner_area.height {
+    if ball_x < playing_area.x + playing_area.width && ball_y < playing_area.y + playing_area.height {
         let ball_area = Rect {
             x: ball_x,
             y: ball_y,
-            width: 2,
+            width: 1,
             height: 1,
         };
         
-        let ball_cell = Paragraph::new("●●")
-            .style(Style::default().fg(Color::White).bold());
+        let ball_cell = Paragraph::new("◉")
+            .style(Style::default().fg(Color::Cyan).bold());
         frame.render_widget(ball_cell, ball_area);
     }
 
