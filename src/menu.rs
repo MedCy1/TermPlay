@@ -26,10 +26,7 @@ pub struct MenuOption {
 #[derive(Debug, Clone)]
 pub enum MenuAction {
     EnterSubMenu(MenuState),
-    LaunchGame(String),
-    ShowAbout,
     Quit,
-    GoBack,
 }
 
 pub struct MainMenu {
@@ -154,7 +151,6 @@ impl MainMenu {
                             GameAction::Continue
                         }
                         MenuAction::Quit => GameAction::Quit,
-                        _ => GameAction::Continue,
                     }
                 } else {
                     GameAction::Continue
