@@ -164,9 +164,9 @@ cargo build --release --target x86_64-unknown-linux-gnu
 - [x] **Menu System** - Beautiful navigation with Games, Settings, and About sections
 - [x] **Cross-platform Support** - Works seamlessly on Windows, macOS, and Linux
 - [x] **Pong** - Classic paddle game with AI opponent
+- [x] **2048** - Number sliding puzzle game
 
 ### 🚧 In Progress / Planned
-- [ ] **2048** - Number sliding puzzle game  
 - [ ] **Minesweeper** - Classic mine detection game
 - [ ] **Breakout** - Brick breaking arcade game
 - [ ] **Conway's Game of Life** - Cellular automaton visualization
