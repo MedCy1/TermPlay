@@ -293,7 +293,7 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
             height: 1,
         };
         
-        let food_cell = Paragraph::new("🍎")
+        let food_cell = Paragraph::new("●")
             .style(Style::default().fg(Color::Red).bold());
         frame.render_widget(food_cell, food_area);
     }
