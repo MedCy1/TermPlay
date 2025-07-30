@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 pub mod snake;
 pub mod tetris;
+pub mod pong;
 
 pub type GameConstructor = Box<dyn Fn() -> Box<dyn Game>>;
 
@@ -52,6 +53,11 @@ impl GameRegistry {
         let tetris_game = tetris::TetrisGame::new();
         self.register(tetris_game.name(), tetris_game.description(), || {
             Box::new(tetris::TetrisGame::new())
+        });
+
+        let pong_game = pong::PongGame::new();
+        self.register(pong_game.name(), pong_game.description(), || {
+            Box::new(pong::PongGame::new())
         });
     }
 }
