@@ -6,6 +6,7 @@ pub mod tetris;
 pub mod pong;
 pub mod game2048;
 pub mod minesweeper;
+pub mod breakout;
 
 pub type GameConstructor = Box<dyn Fn() -> Box<dyn Game>>;
 
@@ -70,6 +71,11 @@ impl GameRegistry {
         let minesweeper_game = minesweeper::MinesweeperGame::new();
         self.register(minesweeper_game.name(), minesweeper_game.description(), || {
             Box::new(minesweeper::MinesweeperGame::new())
+        });
+
+        let breakout_game = breakout::BreakoutGame::new();
+        self.register(breakout_game.name(), breakout_game.description(), || {
+            Box::new(breakout::BreakoutGame::new())
         });
     }
 }
