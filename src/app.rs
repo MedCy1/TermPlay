@@ -101,11 +101,11 @@ impl App {
 
     fn run_game_loop<B: Backend>(&self, game: &mut Box<dyn Game>, terminal: &mut Terminal<B>) -> GameResult {
         let mut last_tick = Instant::now();
-        let tick_rate = Duration::from_millis(250);
 
         loop {
             terminal.draw(|f| game.draw(f))?;
 
+            let tick_rate = game.tick_rate(); // Obtenir le tick rate dynamique
             let timeout = tick_rate
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));

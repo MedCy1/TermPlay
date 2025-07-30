@@ -17,6 +17,9 @@ pub trait Game {
     fn handle_key(&mut self, key: KeyEvent) -> GameAction;
     fn update(&mut self) -> GameAction;
     fn draw(&mut self, frame: &mut Frame);
+    fn tick_rate(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(250) // Valeur par défaut
+    }
 }
 
 #[derive(Debug, Clone)]

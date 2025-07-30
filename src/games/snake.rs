@@ -7,6 +7,7 @@ use ratatui::{
     text::Line,
     widgets::{Block, Clear, Paragraph},
 };
+use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
@@ -163,6 +164,19 @@ impl Game for SnakeGame {
     fn draw(&mut self, frame: &mut ratatui::Frame) {
         draw_snake_game(frame, self);
     }
+
+    fn tick_rate(&self) -> Duration {
+        // Vitesse de base: 300ms
+        let base_speed: u64 = 300;
+        
+        // Réduction de 15ms par segment du serpent (sans compter la tête)
+        let speed_increase = (self.snake.len().saturating_sub(1) * 15) as u64;
+        
+        // Vitesse minimale: 80ms pour éviter que ce soit injouable
+        let final_speed = base_speed.saturating_sub(speed_increase).max(80);
+        
+        Duration::from_millis(final_speed)
+    }
 }
 
 impl SnakeGame {
@@ -216,6 +230,9 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
     frame.render_widget(background, area);
 
     // === HEADER ===
+    let current_speed = app.tick_rate().as_millis();
+    let snake_length = app.snake.len();
+    
     let header_text = vec![
         Line::from(vec![
             "🐍 ".green().bold(),
@@ -225,7 +242,10 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
         Line::from(vec![
             "Score: ".yellow(),
             format!("{}", app.score).white().bold(),
-            format!(" | Game: {}x{} | Inner: {}x{}", game_width, game_height, inner_area.width, inner_area.height).gray(),
+            " | Length: ".gray(),
+            format!("{}", snake_length).green().bold(),
+            " | Speed: ".gray(),
+            format!("{}ms", current_speed).red().bold(),
         ]),
     ];
     
