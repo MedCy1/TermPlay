@@ -158,6 +158,13 @@ cargo build --release --target x86_64-unknown-linux-gnu
 
 ## 📋 TODO / Roadmap
 
+### ✅ Completed
+- [x] **Snake** - Classic snake game with progressive difficulty and modern graphics
+- [x] **Tetris** - Complete implementation with line clearing, levels, and authentic gameplay
+- [x] **Menu System** - Beautiful navigation with Games, Settings, and About sections
+- [x] **Cross-platform Support** - Works seamlessly on Windows, macOS, and Linux
+
+### 🚧 In Progress / Planned
 - [ ] **Pong** - Classic paddle game with AI opponent
 - [ ] **2048** - Number sliding puzzle game  
 - [ ] **Minesweeper** - Classic mine detection game
