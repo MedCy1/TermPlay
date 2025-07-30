@@ -163,9 +163,9 @@ cargo build --release --target x86_64-unknown-linux-gnu
 - [x] **Tetris** - Complete implementation with line clearing, levels, and authentic gameplay
 - [x] **Menu System** - Beautiful navigation with Games, Settings, and About sections
 - [x] **Cross-platform Support** - Works seamlessly on Windows, macOS, and Linux
+- [x] **Pong** - Classic paddle game with AI opponent
 
 ### 🚧 In Progress / Planned
-- [ ] **Pong** - Classic paddle game with AI opponent
 - [ ] **2048** - Number sliding puzzle game  
 - [ ] **Minesweeper** - Classic mine detection game
 - [ ] **Breakout** - Brick breaking arcade game
