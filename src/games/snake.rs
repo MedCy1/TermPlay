@@ -217,9 +217,9 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
     let game_area = chunks[1];
     let inner_area = game_area.inner(Margin { vertical: 1, horizontal: 1 });
     
-    // Calculer les VRAIES dimensions utilisables = exactement l'espace disponible
-    let game_width = inner_area.width.max(20); // Pas de limite max
-    let game_height = inner_area.height.max(10); // Pas de limite max
+    // Calculer les dimensions en cellules de 2 caractères de large (comme Tetris)
+    let game_width = (inner_area.width / 2).max(10); // Division par 2 pour des cellules de 2 chars
+    let game_height = inner_area.height.max(10);
     
     // Mettre à jour les dimensions logiques du jeu
     app.update_dimensions(game_width, game_height);
@@ -269,30 +269,49 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
 
     let inner_area = game_area.inner(Margin { vertical: 1, horizontal: 1 });
     
-    // Utiliser exactement 1 caractère par cellule de jeu
-    // Pas d'offset car nous utilisons tout l'espace disponible
-    let offset_x = 0;
-    let offset_y = 0;
-
-    // Dessiner le serpent avec style dégradé
+    // Dessiner une grille de fond subtile pour mieux voir les cellules
+    let grid_width = game_width * 2; // Largeur totale en caractères
+    let grid_height = game_height;
+    
+    for y in 0..grid_height {
+        for x in 0..(grid_width / 2) {
+            let cell_x = inner_area.x + (x * 2);
+            let cell_y = inner_area.y + y;
+            
+            if cell_x + 1 < inner_area.x + inner_area.width && cell_y < inner_area.y + inner_area.height {
+                let cell_area = Rect {
+                    x: cell_x,
+                    y: cell_y,
+                    width: 2,
+                    height: 1,
+                };
+                
+                let grid_cell = Paragraph::new("░░")
+                    .style(Style::default().fg(Color::Rgb(30, 35, 40)));
+                frame.render_widget(grid_cell, cell_area);
+            }
+        }
+    }
+    
+    // Dessiner le serpent avec des cellules carrées (2 caractères de large)
     for (i, segment) in app.snake.iter().enumerate() {
         if segment.x < game_width && segment.y < game_height {
-            let x = inner_area.x + offset_x + segment.x;
-            let y = inner_area.y + offset_y + segment.y;
+            let cell_x = inner_area.x + (segment.x * 2); // 2 caractères par cellule
+            let cell_y = inner_area.y + segment.y;
             
             let cell_area = Rect {
-                x,
-                y,
-                width: 1,
+                x: cell_x,
+                y: cell_y,
+                width: 2, // Cellules de 2 caractères de large
                 height: 1,
             };
             
             // Couleurs dégradées pour un effet visuel
             let (color, symbol) = if i == 0 {
-                (Color::Rgb(120, 255, 120), "█") // Tête verte claire
+                (Color::Rgb(120, 255, 120), "██") // Tête verte claire
             } else {
                 let intensity = 180 - (i * 10).min(100) as u8;
-                (Color::Rgb(50, intensity, 50), "█") // Corps dégradé
+                (Color::Rgb(50, intensity, 50), "██") // Corps dégradé
             };
             
             let snake_cell = Paragraph::new(symbol)
@@ -301,19 +320,19 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
         }
     }
 
-    // Dessiner la nourriture avec animation
+    // Dessiner la nourriture avec des cellules carrées
     if app.food.x < game_width && app.food.y < game_height {
-        let food_x = inner_area.x + offset_x + app.food.x;
-        let food_y = inner_area.y + offset_y + app.food.y;
+        let food_x = inner_area.x + (app.food.x * 2); // 2 caractères par cellule
+        let food_y = inner_area.y + app.food.y;
         
         let food_area = Rect {
             x: food_x,
             y: food_y,
-            width: 1,
+            width: 2, // Cellules de 2 caractères de large
             height: 1,
         };
         
-        let food_cell = Paragraph::new("●")
+        let food_cell = Paragraph::new("██")
             .style(Style::default().fg(Color::Red).bold());
         frame.render_widget(food_cell, food_area);
     }
