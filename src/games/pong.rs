@@ -37,6 +37,7 @@ pub enum PongState {
 pub struct Ball {
     position: Position,
     velocity: Velocity,
+    #[allow(dead_code)]
     size: f32,
 }
 
