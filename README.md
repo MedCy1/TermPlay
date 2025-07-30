@@ -165,9 +165,9 @@ cargo build --release --target x86_64-unknown-linux-gnu
 - [x] **Cross-platform Support** - Works seamlessly on Windows, macOS, and Linux
 - [x] **Pong** - Classic paddle game with AI opponent
 - [x] **2048** - Number sliding puzzle game
+- [x] **Minesweeper** - Classic mine detection game
 
 ### 🚧 In Progress / Planned
-- [ ] **Minesweeper** - Classic mine detection game
 - [ ] **Breakout** - Brick breaking arcade game
 - [ ] **Conway's Game of Life** - Cellular automaton visualization
 - [ ] **Sound Effects** - Audio feedback for game events
