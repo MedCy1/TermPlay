@@ -122,6 +122,7 @@ pub struct PongGame {
     
     // IA
     ai_difficulty: f32, // Entre 0.0 et 1.0
+    ai_update_counter: u32, // Compteur pour ralentir l'IA
     
 }
 
@@ -147,6 +148,7 @@ impl PongGame {
             max_score: 5,
             
             ai_difficulty: 0.7, // IA modérément difficile
+            ai_update_counter: 0,
         }
     }
 
@@ -166,6 +168,13 @@ impl PongGame {
 
     fn update_ai(&mut self) {
         if self.mode == GameMode::SinglePlayer {
+            // L'IA ne réagit que toutes les 3 frames pour éviter les mouvements épileptiques
+            self.ai_update_counter += 1;
+            if self.ai_update_counter < 3 {
+                return;
+            }
+            self.ai_update_counter = 0;
+            
             let ball_center_y = self.ball.position.y;
             let paddle_center_y = self.player2.get_center();
             
@@ -175,13 +184,17 @@ impl PongGame {
             let mut rng = rand::rng();
             let _reaction_speed = self.ai_difficulty * self.player2.speed;
             
+            // Zone morte élargie pour éviter les mouvements épileptiques
+            let dead_zone = 1.5; // Zone morte plus large
+            
             // Ajouter un peu d'imprécision à l'IA
-            let error = rng.random_range(-0.5..0.5) * (1.0 - self.ai_difficulty);
+            let error = rng.random_range(-0.3..0.3) * (1.0 - self.ai_difficulty);
             let target_diff = diff + error;
             
-            if target_diff > 0.5 {
+            // Ne bouger que si on est vraiment loin du centre
+            if target_diff > dead_zone {
                 self.player2.move_down(self.height);
-            } else if target_diff < -0.5 {
+            } else if target_diff < -dead_zone {
                 self.player2.move_up(self.height);
             }
         }
