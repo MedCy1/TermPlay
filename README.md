@@ -166,9 +166,9 @@ cargo build --release --target x86_64-unknown-linux-gnu
 - [x] **Pong** - Classic paddle game with AI opponent
 - [x] **2048** - Number sliding puzzle game
 - [x] **Minesweeper** - Classic mine detection game
+- [x] **Breakout** - Brick breaking arcade game
 
 ### 🚧 In Progress / Planned
-- [ ] **Breakout** - Brick breaking arcade game
 - [ ] **Conway's Game of Life** - Cellular automaton visualization
 - [ ] **Sound Effects** - Audio feedback for game events
 - [ ] **High Scores** - Persistent leaderboards
