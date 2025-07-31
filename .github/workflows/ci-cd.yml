@@ -57,22 +57,27 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             name: termplay-linux-x86_64
+            cross: false
             
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             name: termplay-linux-aarch64
+            cross: true
             
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             name: termplay-windows-x86_64.exe
+            cross: false
             
           - os: macos-latest
             target: x86_64-apple-darwin
             name: termplay-macos-x86_64
+            cross: false
             
           - os: macos-latest
             target: aarch64-apple-darwin
             name: termplay-macos-aarch64
+            cross: false
 
     steps:
       - uses: actions/checkout@v4
@@ -87,24 +92,57 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      # Dépendances système par OS
+      # Dépendances système pour builds natifs
       - name: Install Linux dependencies
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && !matrix.cross
         run: |
           sudo apt-get update
           sudo apt-get install -y libasound2-dev
-          
-      - name: Install cross for cross-compilation
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: cargo install cross --git https://github.com/cross-rs/cross
 
-      # Build du projet
+      # Configuration spécifique pour cross-compilation
+      - name: Setup cross-compilation
+        if: matrix.cross
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+          
+          # Créer le fichier Cross.toml avec la configuration appropriée
+          mkdir -p .cross
+          cat > Cross.toml << 'EOF'
+          [build.env]
+          passthrough = [
+              "GITHUB_ACTIONS",
+              "GITHUB_TOKEN",
+              "CARGO_HOME",
+              "CARGO_TARGET_DIR",
+          ]
+
+          [target.aarch64-unknown-linux-gnu]
+          dockerfile = ".cross/Dockerfile.aarch64"
+          EOF
+          
+          # Créer le Dockerfile personnalisé pour aarch64
+          cat > .cross/Dockerfile.aarch64 << 'EOF'
+          FROM ghcr.io/cross-rs/aarch64-unknown-linux-gnu:edge
+
+          RUN dpkg --add-architecture arm64 && \
+              apt-get update && \
+              apt-get install -y \
+                  libasound2-dev:arm64 \
+                  pkg-config:arm64 && \
+              rm -rf /var/lib/apt/lists/*
+
+          ENV PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+          ENV PKG_CONFIG_ALLOW_CROSS=1
+          EOF
+
+      # Build natif
       - name: Build release binary (native)
-        if: matrix.target != 'aarch64-unknown-linux-gnu'
+        if: '!matrix.cross'
         run: cargo build --release --target ${{ matrix.target }}
         
-      - name: Build release binary (cross-compilation)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
+      # Build avec cross-compilation
+      - name: Build release binary (cross)
+        if: matrix.cross
         run: cross build --release --target ${{ matrix.target }}
 
       # Preparation des binaires pour upload
@@ -201,7 +239,7 @@ jobs:
           sudo apt-get install -y libasound2-dev
 
       - name: Run benchmarks
-        run: cargo bench --no-run  # Prépare les benchmarks sans les exécuter
+        run: cargo bench --no-run
 
   # Job de sécurité
   security:
