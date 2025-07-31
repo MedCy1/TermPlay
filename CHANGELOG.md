@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.0] - 2025-08-01
+
+- feat: update CI/CD pipeline to support created releases and enhance build process (660bb29)
+- feat: enhance CI/CD pipeline to support draft and published releases (ccfb795)
+
 ## [1.1.0] - 2025-07-31
 
 - feat: enhance cross-compilation setup for aarch64 target by adding build dependencies and environment variables (2a167e9)
