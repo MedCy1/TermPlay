@@ -474,6 +474,23 @@ impl Game for TetrisGame {
 fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
     let area = frame.area();
     
+    // Vérification de taille minimale pour éviter les erreurs de rendu
+    if area.width < 30 || area.height < 15 {
+        // Afficher un message d'erreur si l'écran est trop petit
+        let error_text = vec![
+            Line::from("Terminal too small!".red().bold()),
+            Line::from("Minimum size: 30x15".yellow()),
+            Line::from(format!("Current: {}x{}", area.width, area.height).gray()),
+        ];
+        
+        let error_msg = Paragraph::new(error_text)
+            .alignment(ratatui::layout::Alignment::Center)
+            .block(Block::bordered().title("Error").border_style(Style::new().red()));
+            
+        frame.render_widget(error_msg, area);
+        return;
+    }
+    
     // Layout principal
     let chunks = Layout::vertical([
         Constraint::Length(4), // Header
@@ -575,7 +592,7 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
         x: game_rect.x + 1,
         y: game_rect.y + 1,
         width: board_width,
-        height: BOARD_HEIGHT as u16, // Forcer exactement la hauteur de la grille logique
+        height: (BOARD_HEIGHT as u16).min(game_rect.height.saturating_sub(2)), // Limiter par l'espace disponible
     };
 
     // Dessiner la grille (exactement BOARD_HEIGHT lignes)
@@ -584,7 +601,9 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
             let cell_x = board_area.x + (x as u16 * 2);
             let cell_y = board_area.y + y as u16;
             
-            if cell_x + 1 < board_area.x + board_area.width && y < BOARD_HEIGHT {
+            if cell_x + 1 < board_area.x + board_area.width && 
+               cell_y < board_area.y + board_area.height &&
+               y < BOARD_HEIGHT {
                 let cell_area = Rect {
                     x: cell_x,
                     y: cell_y,
@@ -613,7 +632,8 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
                 let cell_x = board_area.x + (block.x as u16 * 2);
                 let cell_y = board_area.y + block.y as u16;
                 
-                if cell_x + 1 < board_area.x + board_area.width {
+                if cell_x + 1 < board_area.x + board_area.width &&
+                   cell_y < board_area.y + board_area.height {
                     let cell_area = Rect {
                         x: cell_x,
                         y: cell_y,
