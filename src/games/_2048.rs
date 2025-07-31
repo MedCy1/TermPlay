@@ -151,6 +151,7 @@ impl Game2048 {
                             if merged_value == 2048 && !self.won {
                                 self.won = true;
                                 // Son de victoire spécial
+                                self.audio.play_sound(SoundEffect::Game2048Victory);
                                 self.audio.stop_music();
                                 self.audio.play_2048_music_celebration();
                                 self.music_started = false;
@@ -195,6 +196,7 @@ impl Game2048 {
                             if merged_value == 2048 && !self.won {
                                 self.won = true;
                                 // Son de victoire spécial
+                                self.audio.play_sound(SoundEffect::Game2048Victory);
                                 self.audio.stop_music();
                                 self.audio.play_2048_music_celebration();
                                 self.music_started = false;
@@ -242,6 +244,7 @@ impl Game2048 {
                             if merged_value == 2048 && !self.won {
                                 self.won = true;
                                 // Son de victoire spécial
+                                self.audio.play_sound(SoundEffect::Game2048Victory);
                                 self.audio.stop_music();
                                 self.audio.play_2048_music_celebration();
                                 self.music_started = false;
@@ -289,6 +292,7 @@ impl Game2048 {
                             if merged_value == 2048 && !self.won {
                                 self.won = true;
                                 // Son de victoire spécial
+                                self.audio.play_sound(SoundEffect::Game2048Victory);
                                 self.audio.stop_music();
                                 self.audio.play_2048_music_celebration();
                                 self.music_started = false;
