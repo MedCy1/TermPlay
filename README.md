@@ -172,8 +172,8 @@ cargo build --release --target x86_64-unknown-linux-gnu
 ### 🚧 In Progress / Planned
 - [ ] **Sound Effects** - Audio feedback for game events
   - [x] Snake
-  - [ ] Tetris
-  - [ ] Menu
+  - [x] Tetris
+  - [x] Menu
   - [ ] Pong
   - [ ] 2048
   - [ ] Minesweeper
