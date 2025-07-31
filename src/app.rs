@@ -39,11 +39,16 @@ impl App {
     pub fn run_menu(&mut self) -> GameResult {
         let mut terminal = self.setup_terminal()?;
         let mut menu = MainMenu::new(self.registry.list_games());
+        let mut last_tick = Instant::now();
         
         loop {
             terminal.draw(|f| menu.draw(f))?;
 
-            if event::poll(Duration::from_millis(100))? {
+            let timeout = Duration::from_millis(100)
+                .checked_sub(last_tick.elapsed())
+                .unwrap_or_else(|| Duration::from_secs(0));
+
+            if event::poll(timeout)? {
                 if let Event::Key(key) = event::read()? {
                     // Ne traiter que les événements de pression de touche pour éviter les répétitions
                     if key.kind == KeyEventKind::Press {
@@ -62,6 +67,12 @@ impl App {
                         }
                     }
                 }
+            }
+
+            // Update du menu pour gérer la musique
+            if last_tick.elapsed() >= Duration::from_millis(100) {
+                menu.update();
+                last_tick = Instant::now();
             }
         }
 

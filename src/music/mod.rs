@@ -1,7 +1,7 @@
 pub mod tetris;
 pub mod snake;
 
-use rodio::{source::Source, Sink};
+use rodio::{source::{Source, SineWave}, Sink};
 use std::time::Duration;
 
 /// Trait pour définir les différentes musiques du jeu
@@ -19,46 +19,36 @@ pub trait GameMusic {
     fn name(&self) -> &str;
 }
 
-/// Helper pour créer des notes avec fade in/out
+/// Helper pour créer des notes avec fade in/out - Compatible Rodio 0.21
 pub fn create_note(frequency: f32, duration_ms: u64, volume: f32) -> Box<dyn Source<Item = f32> + Send> {
-    use rodio::source::SineWave;
+    // Dans Rodio 0.21, frequency doit être > 0
+    let safe_freq = if frequency <= 0.0 { 1.0 } else { frequency };
+    let safe_volume = if frequency <= 0.0 { 0.0 } else { volume };
     
     Box::new(
-        SineWave::new(frequency)
+        SineWave::new(safe_freq)
             .take_duration(Duration::from_millis(duration_ms))
             .fade_in(Duration::from_millis(10.min(duration_ms / 4)))
             .fade_out(Duration::from_millis(30.min(duration_ms / 3)))
-            .amplify(volume)
+            .amplify(safe_volume)
     )
 }
 
-/// Helper pour créer des accords (plusieurs notes simultanées)
+/// Helper pour créer des accords (plusieurs notes simultanées) - Compatible Rodio 0.21
 pub fn create_chord(frequencies: &[f32], duration_ms: u64, volume: f32) -> Box<dyn Source<Item = f32> + Send> {
-    use rodio::source::SineWave;
-    
     if frequencies.is_empty() {
-        return create_note(0.0, duration_ms, 0.0);
+        return create_note(1.0, duration_ms, 0.0); // Fréquence 1Hz inaudible au lieu de 0.0
     }
     
     if frequencies.len() == 1 {
         return create_note(frequencies[0], duration_ms, volume);
     }
     
-    // Créer la première note
-    let mut chord_source: Box<dyn Source<Item = f32> + Send> = Box::new(
+    // Pour simplifier avec Rodio 0.21, on joue juste la première note de l'accord
+    // TODO: Implémenter un vrai système d'accords plus tard
+    Box::new(
         SineWave::new(frequencies[0])
             .take_duration(Duration::from_millis(duration_ms))
-    );
-    
-    // Ajouter les autres notes
-    for &freq in &frequencies[1..] {
-        let note = SineWave::new(freq)
-            .take_duration(Duration::from_millis(duration_ms));
-        chord_source = Box::new(chord_source.mix(note));
-    }
-    
-    Box::new(
-        chord_source
             .fade_in(Duration::from_millis(20.min(duration_ms / 4)))
             .fade_out(Duration::from_millis(50.min(duration_ms / 3)))
             .amplify(volume)

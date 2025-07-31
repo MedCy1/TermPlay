@@ -316,6 +316,8 @@ impl AudioManager {
         if let Some(sink) = &self.music_sink {
             let volume = *self.music_volume.lock().unwrap();
             TETRIS_MUSIC.play_normal(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
         }
     }
     
@@ -335,6 +337,8 @@ impl AudioManager {
         if let Some(sink) = &self.music_sink {
             let volume = *self.music_volume.lock().unwrap();
             TETRIS_MUSIC.play_fast(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
         }
     }
     
@@ -347,6 +351,8 @@ impl AudioManager {
         if let Some(sink) = &self.music_sink {
             let volume = *self.music_volume.lock().unwrap();
             TETRIS_MUSIC.play_celebration(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
         }
     }
     
@@ -359,6 +365,8 @@ impl AudioManager {
         if let Some(sink) = &self.music_sink {
             let volume = *self.music_volume.lock().unwrap();
             SNAKE_MUSIC.play_normal(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
         }
     }
     
@@ -371,6 +379,8 @@ impl AudioManager {
         if let Some(sink) = &self.music_sink {
             let volume = *self.music_volume.lock().unwrap();
             SNAKE_MUSIC.play_fast(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
         }
     }
     
@@ -455,6 +465,7 @@ impl AudioManager {
             true
         }
     }
+    
 }
 
 impl Default for AudioManager {

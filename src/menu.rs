@@ -1,4 +1,6 @@
 use crate::core::{GameAction, GameInfo};
+use crate::audio::AudioManager;
+use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
@@ -12,6 +14,7 @@ use ratatui::{
 pub enum MenuState {
     Main,
     Games,
+    MusicPlayer,
     Settings,
     About,
 }
@@ -35,6 +38,15 @@ pub struct MainMenu {
     games_list: Vec<GameInfo>,
     selected_index: usize,
     list_state: ListState,
+    audio: AudioManager,
+    music_tracks: Vec<MusicTrack>,
+    current_playing: Option<usize>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MusicTrack {
+    pub name: String,
+    pub variants: Vec<String>, // normal, fast, celebration
 }
 
 impl MainMenu {
@@ -44,6 +56,11 @@ impl MainMenu {
                 title: "🎮 Games".to_string(),
                 description: "Play exciting terminal games".to_string(),
                 action: MenuAction::EnterSubMenu(MenuState::Games),
+            },
+            MenuOption {
+                title: "🎵 Music Player".to_string(),
+                description: "Listen to game soundtracks".to_string(),
+                action: MenuAction::EnterSubMenu(MenuState::MusicPlayer),
             },
             MenuOption {
                 title: "⚙️ Settings".to_string(),
@@ -65,12 +82,31 @@ impl MainMenu {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
 
+        let music_tracks = vec![
+            MusicTrack {
+                name: TETRIS_MUSIC.name().to_string(),
+                variants: vec!["Normal".to_string(), "Fast".to_string(), "Celebration".to_string()],
+            },
+            MusicTrack {
+                name: SNAKE_MUSIC.name().to_string(),
+                variants: vec!["Normal".to_string(), "Fast".to_string()],
+            },
+        ];
+
+        let audio = AudioManager::default();
+        // Activer la musique par défaut pour le music player
+        audio.set_music_enabled(true);
+        audio.set_enabled(true);
+
         Self {
             current_menu: MenuState::Main,
             main_options,
             games_list: games.into_iter().cloned().collect(),
             selected_index: 0,
             list_state,
+            audio,
+            music_tracks,
+            current_playing: None,
         }
     }
 
@@ -80,6 +116,11 @@ impl MainMenu {
                 if self.current_menu == MenuState::Main {
                     GameAction::Quit
                 } else {
+                    // Arrêter la musique si on quitte le music player
+                    if self.current_menu == MenuState::MusicPlayer {
+                        self.audio.stop_music();
+                        self.current_playing = None;
+                    }
                     self.go_back();
                     GameAction::Continue
                 }
@@ -99,6 +140,19 @@ impl MainMenu {
                 GameAction::Continue
             }
             KeyCode::Enter => self.select_current_item(),
+            KeyCode::Char(' ') => {
+                if self.current_menu == MenuState::MusicPlayer {
+                    self.play_selected_music();
+                }
+                GameAction::Continue
+            }
+            KeyCode::Char('s') => {
+                if self.current_menu == MenuState::MusicPlayer {
+                    self.audio.stop_music();
+                    self.current_playing = None;
+                }
+                GameAction::Continue
+            }
             _ => GameAction::Continue,
         }
     }
@@ -107,6 +161,7 @@ impl MainMenu {
         let max_items = match self.current_menu {
             MenuState::Main => self.main_options.len(),
             MenuState::Games => self.games_list.len(),
+            MenuState::MusicPlayer => self.music_tracks.len(),
             MenuState::Settings => 3,
             MenuState::About => 1,
         };
@@ -123,6 +178,7 @@ impl MainMenu {
         let max_items = match self.current_menu {
             MenuState::Main => self.main_options.len(),
             MenuState::Games => self.games_list.len(),
+            MenuState::MusicPlayer => self.music_tracks.len(),
             MenuState::Settings => 3,
             MenuState::About => 1,
         };
@@ -163,6 +219,10 @@ impl MainMenu {
                     GameAction::Continue
                 }
             }
+            MenuState::MusicPlayer => {
+                self.play_selected_music();
+                GameAction::Continue
+            }
             MenuState::Settings | MenuState::About => {
                 self.go_back();
                 GameAction::Continue
@@ -175,6 +235,33 @@ impl MainMenu {
         self.selected_index = 0;
         self.list_state.select(Some(0));
     }
+    
+    fn play_selected_music(&mut self) {
+        if let Some(track) = self.music_tracks.get(self.selected_index) {
+            self.audio.stop_music(); // Arrêter toute musique en cours
+            
+            // S'assurer que l'audio est activé
+            if !self.audio.is_enabled() {
+                self.audio.set_enabled(true);
+            }
+            if !self.audio.is_music_enabled() {
+                self.audio.set_music_enabled(true);
+            }
+            
+            // Jouer la musique sélectionnée
+            match track.name.as_str() {
+                "Tetris (Korobeiniki)" => {
+                    self.audio.play_tetris_music();
+                }
+                "Snake Ambient" => {
+                    self.audio.play_snake_music();
+                }
+                _ => {}
+            }
+            
+            self.current_playing = Some(self.selected_index);
+        }
+    }
 
     pub fn get_selected_game(&self) -> Option<&str> {
         if self.current_menu == MenuState::Games {
@@ -186,6 +273,16 @@ impl MainMenu {
 
     pub fn draw(&mut self, frame: &mut Frame) {
         draw_main_menu(frame, self);
+    }
+    
+    pub fn update(&mut self) {
+        // Gérer la boucle de musique si on est dans le music player
+        if self.current_menu == MenuState::MusicPlayer && self.current_playing.is_some() {
+            if self.audio.is_music_enabled() && self.audio.is_music_empty() {
+                // Relancer la musique si elle est finie
+                self.play_selected_music();
+            }
+        }
     }
 }
 
@@ -208,6 +305,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
     let title = match app.current_menu {
         MenuState::Main => "TERMPLAY",
         MenuState::Games => "GAMES",
+        MenuState::MusicPlayer => "MUSIC PLAYER",
         MenuState::Settings => "SETTINGS",
         MenuState::About => "ABOUT",
     };
@@ -215,6 +313,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
     let subtitle = match app.current_menu {
         MenuState::Main => "Terminal Mini-Games Collection",
         MenuState::Games => "Choose your adventure",
+        MenuState::MusicPlayer => "Listen to game soundtracks",
         MenuState::Settings => "Configure your experience",
         MenuState::About => "Information about TermPlay",
     };
@@ -242,6 +341,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
     match app.current_menu {
         MenuState::Main => draw_main_options(frame, chunks[1], app),
         MenuState::Games => draw_games_menu(frame, chunks[1], app),
+        MenuState::MusicPlayer => draw_music_player(frame, chunks[1], app),
         MenuState::Settings => draw_settings_menu(frame, chunks[1]),
         MenuState::About => draw_about_menu(frame, chunks[1]),
     }
@@ -249,6 +349,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
     // === FOOTER ===
     let controls = match app.current_menu {
         MenuState::Main => "Arrow Keys Move • Enter Select • Q Quit",
+        MenuState::MusicPlayer => "Arrow Keys Move • Space/Enter Play • S Stop • Esc/Q Back",
         _ => "Arrow Keys Move • Enter Select • Esc/Q Back",
     };
 
@@ -393,4 +494,50 @@ fn draw_about_menu(frame: &mut Frame, area: Rect) {
                 .style(Style::default().bg(Color::Rgb(10, 15, 20)))
         );
     frame.render_widget(about, area);
+}
+
+fn draw_music_player(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
+    let items: Vec<ListItem> = app
+        .music_tracks
+        .iter()
+        .enumerate()
+        .map(|(i, track)| {
+            let status = if app.current_playing == Some(i) {
+                "▶️ "
+            } else {
+                "🎵 "
+            };
+            
+            let playing_text = if app.current_playing == Some(i) {
+                " [PLAYING]".green().bold()
+            } else {
+                "".white()
+            };
+
+            let content = vec![Line::from(vec![
+                Span::styled(format!("  {} ", status), Style::default().fg(Color::Green).bold()),
+                Span::styled(&track.name, Style::default().fg(Color::White).bold()),
+                playing_text,
+            ])];
+            ListItem::new(content)
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(
+            Block::bordered()
+                .title(" Available Music Tracks ".magenta().bold())
+                .border_style(Style::new().magenta())
+                .style(Style::default().bg(Color::Rgb(10, 15, 20)))
+        )
+        .style(Style::default().fg(Color::White))
+        .highlight_style(
+            Style::default()
+                .bg(Color::Rgb(100, 0, 150))
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD)
+        )
+        .highlight_symbol("▶ ");
+
+    frame.render_stateful_widget(list, area, &mut app.list_state);
 }
