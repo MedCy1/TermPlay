@@ -53,6 +53,7 @@ pub enum SoundEffect {
     // UI
     MenuSelect,
     MenuConfirm,
+    MenuBack,
 }
 
 // Notes musicales en Hz (pour référence future)
@@ -373,6 +374,14 @@ impl AudioManager {
                 Some(Box::new(
                     SineWave::new(800.0)
                         .take_duration(Duration::from_millis(100))
+                ))
+            }
+            SoundEffect::MenuBack => {
+                // Son de retour - comme MenuConfirm mais descendant au lieu de montant
+                Some(Box::new(
+                    SineWave::new(600.0)
+                        .take_duration(Duration::from_millis(80))
+                        .fade_out(Duration::from_millis(30))
                 ))
             }
         }

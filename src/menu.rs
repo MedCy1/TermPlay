@@ -134,6 +134,7 @@ impl MainMenu {
         match key.code {
             KeyCode::Char('q') => {
                 if self.current_menu == MenuState::Main {
+                    self.audio.play_sound(crate::audio::SoundEffect::MenuConfirm);
                     GameAction::Quit
                 } else {
                     // Arrêter la musique si on quitte le music player
@@ -141,27 +142,35 @@ impl MainMenu {
                         self.audio.stop_music();
                         self.current_playing = None;
                     }
+                    self.audio.play_sound(crate::audio::SoundEffect::MenuBack);
                     self.go_back();
                     GameAction::Continue
                 }
             }
             KeyCode::Esc => {
                 if self.current_menu != MenuState::Main {
+                    self.audio.play_sound(crate::audio::SoundEffect::MenuBack);
                     self.go_back();
                 }
                 GameAction::Continue
             }
             KeyCode::Down => {
                 self.next_item();
+                self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
                 GameAction::Continue
             }
             KeyCode::Up => {
                 self.previous_item();
+                self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
                 GameAction::Continue
             }
-            KeyCode::Enter => self.select_current_item(),
+            KeyCode::Enter => {
+                self.audio.play_sound(crate::audio::SoundEffect::MenuConfirm);
+                self.select_current_item()
+            },
             KeyCode::Char(' ') => {
                 if self.current_menu == MenuState::MusicPlayer {
+                    self.audio.play_sound(crate::audio::SoundEffect::MenuConfirm);
                     self.play_selected_music();
                 }
                 GameAction::Continue
