@@ -1,5 +1,6 @@
 mod app;
 mod cli;
+mod config;
 mod core;
 mod games;
 mod menu;

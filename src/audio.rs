@@ -5,6 +5,7 @@ use rodio::{
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC, minesweeper::MINESWEEPER_MUSIC, breakout::BREAKOUT_MUSIC, gameoflife::GAMEOFLIFE_MUSIC};
+use crate::config::AudioConfig;
 
 #[derive(Debug, Clone, Copy)]
 pub enum SoundEffect {
@@ -99,7 +100,8 @@ pub struct AudioManager {
 }
 
 impl AudioManager {
-    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+    
+    pub fn new_with_config(config: &AudioConfig) -> Result<Self, Box<dyn std::error::Error>> {
         match OutputStreamBuilder::open_default_stream() {
             Ok(stream_handle) => {
                 // Créer deux sinks : un pour les effets, un pour la musique
@@ -110,11 +112,11 @@ impl AudioManager {
                     _stream: Some(stream_handle),
                     effects_sink: Some(effects_sink),
                     music_sink: Some(music_sink),
-                    master_volume: Arc::new(Mutex::new(0.8)),
-                    volume: Arc::new(Mutex::new(0.7)),
-                    music_volume: Arc::new(Mutex::new(0.3)),
-                    enabled: Arc::new(Mutex::new(true)),
-                    music_enabled: Arc::new(Mutex::new(true)),
+                    master_volume: Arc::new(Mutex::new(config.master_volume)),
+                    volume: Arc::new(Mutex::new(config.effects_volume)),
+                    music_volume: Arc::new(Mutex::new(config.music_volume)),
+                    enabled: Arc::new(Mutex::new(config.audio_enabled)),
+                    music_enabled: Arc::new(Mutex::new(config.music_enabled)),
                 })
             }
             Err(e) => {
@@ -124,11 +126,11 @@ impl AudioManager {
                     _stream: None,
                     effects_sink: None,
                     music_sink: None,
-                    master_volume: Arc::new(Mutex::new(0.8)),
-                    volume: Arc::new(Mutex::new(0.7)),
-                    music_volume: Arc::new(Mutex::new(0.3)),
-                    enabled: Arc::new(Mutex::new(false)),
-                    music_enabled: Arc::new(Mutex::new(false)),
+                    master_volume: Arc::new(Mutex::new(config.master_volume)),
+                    volume: Arc::new(Mutex::new(config.effects_volume)),
+                    music_volume: Arc::new(Mutex::new(config.music_volume)),
+                    enabled: Arc::new(Mutex::new(false)), // Désactivé si pas d'audio
+                    music_enabled: Arc::new(Mutex::new(false)), // Désactivé si pas d'audio
                 })
             }
         }
@@ -793,21 +795,36 @@ impl AudioManager {
         }
     }
     
+    pub fn get_current_config(&self) -> AudioConfig {
+        AudioConfig {
+            master_volume: *self.master_volume.lock().unwrap(),
+            effects_volume: *self.volume.lock().unwrap(),
+            music_volume: *self.music_volume.lock().unwrap(),
+            audio_enabled: *self.enabled.lock().unwrap(),
+            music_enabled: *self.music_enabled.lock().unwrap(),
+        }
+    }
 }
+
 
 impl Default for AudioManager {
     fn default() -> Self {
-        Self::new().unwrap_or_else(|_| {
+        // Essayer de charger la configuration depuis le fichier, sinon utiliser les valeurs par défaut
+        let config = crate::config::ConfigManager::new()
+            .map(|config_manager| config_manager.get_audio_config().clone())
+            .unwrap_or_else(|_| AudioConfig::default());
+            
+        Self::new_with_config(&config).unwrap_or_else(|_| {
             // Fallback silencieux si l'audio n'est pas disponible
             Self {
                 _stream: None,
                 effects_sink: None,
                 music_sink: None,
-                master_volume: Arc::new(Mutex::new(0.0)),
-                volume: Arc::new(Mutex::new(0.0)),
-                music_volume: Arc::new(Mutex::new(0.0)),
-                enabled: Arc::new(Mutex::new(false)),
-                music_enabled: Arc::new(Mutex::new(false)),
+                master_volume: Arc::new(Mutex::new(config.master_volume)),
+                volume: Arc::new(Mutex::new(config.effects_volume)),
+                music_volume: Arc::new(Mutex::new(config.music_volume)),
+                enabled: Arc::new(Mutex::new(false)), // Disable si pas d'audio hardware
+                music_enabled: Arc::new(Mutex::new(false)), // Disable si pas d'audio hardware
             }
         })
     }

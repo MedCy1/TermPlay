@@ -1,5 +1,6 @@
 use crate::core::{GameAction, GameInfo};
 use crate::audio::AudioManager;
+use crate::config::ConfigManager;
 use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC, minesweeper::MINESWEEPER_MUSIC, breakout::BREAKOUT_MUSIC, gameoflife::GAMEOFLIFE_MUSIC};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
@@ -40,6 +41,7 @@ pub struct MainMenu {
     selected_index: usize,
     list_state: ListState,
     audio: AudioManager,
+    config_manager: ConfigManager,
     music_tracks: Vec<MusicTrack>,
     current_playing: Option<usize>,
     current_variant: Vec<usize>, // Index de la variante sélectionnée pour chaque track
@@ -52,7 +54,10 @@ pub struct MusicTrack {
 }
 
 impl MainMenu {
-    pub fn new(games: Vec<&GameInfo>) -> Self {
+    pub fn new(games: Vec<&GameInfo>) -> Result<Self, Box<dyn std::error::Error>> {
+        // Charger la configuration
+        let config_manager = ConfigManager::new()?;
+        let audio_config = config_manager.get_audio_config();
         let main_options = vec![
             MenuOption {
                 title: "🎮 Games".to_string(),
@@ -115,25 +120,24 @@ impl MainMenu {
             },
         ];
 
-        let audio = AudioManager::default();
-        // Activer la musique par défaut pour le music player
-        audio.set_music_enabled(true);
-        audio.set_enabled(true);
+        // Créer l'AudioManager avec la configuration chargée
+        let audio = AudioManager::new_with_config(audio_config)?;
 
         // Initialiser les variantes sélectionnées (index 0 = première variante pour chaque track)
         let current_variant = vec![0; music_tracks.len()];
 
-        Self {
+        Ok(Self {
             current_menu: MenuState::Main,
             main_options,
             games_list: games.into_iter().cloned().collect(),
             selected_index: 0,
             list_state,
             audio,
+            config_manager,
             music_tracks,
             current_playing: None,
             current_variant,
-        }
+        })
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> GameAction {
@@ -353,6 +357,8 @@ impl MainMenu {
             }
             _ => {}
         }
+        // Sauvegarder la configuration après modification
+        self.save_audio_config();
     }
     
     fn decrease_audio_setting(&mut self) {
@@ -379,6 +385,17 @@ impl MainMenu {
                 self.audio.set_music_enabled(false);
             }
             _ => {}
+        }
+        // Sauvegarder la configuration après modification
+        self.save_audio_config();
+    }
+    
+    fn save_audio_config(&mut self) {
+        let current_audio_config = self.audio.get_current_config();
+        if let Err(e) = self.config_manager.update_audio_config(|config| {
+            *config = current_audio_config;
+        }) {
+            eprintln!("Erreur lors de la sauvegarde de la configuration audio: {}", e);
         }
     }
     
@@ -467,6 +484,7 @@ impl MainMenu {
             None
         }
     }
+    
 
     pub fn draw(&mut self, frame: &mut Frame) {
         draw_main_menu(frame, self);

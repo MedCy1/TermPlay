@@ -38,7 +38,8 @@ impl App {
 
     pub fn run_menu(&mut self) -> GameResult {
         let mut terminal = self.setup_terminal()?;
-        let mut menu = MainMenu::new(self.registry.list_games());
+        let mut menu = MainMenu::new(self.registry.list_games())
+            .map_err(|e| format!("Failed to initialize menu: {}", e))?;
         let mut last_tick = Instant::now();
         
         loop {
@@ -59,8 +60,9 @@ impl App {
                                 if let Some(selected_game) = menu.get_selected_game() {
                                     if let Some(mut game) = self.registry.get_game(selected_game) {
                                         self.run_game_loop(&mut game, &mut terminal)?;
-                                        // Recréer le menu après le jeu
-                                        menu = MainMenu::new(self.registry.list_games());
+                                        // Recréer le menu après le jeu en préservant la configuration
+                                        menu = MainMenu::new(self.registry.list_games())
+                                            .map_err(|e| format!("Failed to recreate menu: {}", e))?;
                                     }
                                 }
                             }
