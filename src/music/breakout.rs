@@ -1,4 +1,4 @@
-use super::{GameMusic, create_note, create_chord};
+use super::{GameMusic, create_note};
 use rodio::Sink;
 
 /// Musique arcade énergique pour Breakout

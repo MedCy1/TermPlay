@@ -59,16 +59,6 @@ impl Ball {
         }
     }
 
-    fn update(&mut self, _width: f32, height: f32) {
-        self.position.x += self.velocity.dx;
-        self.position.y += self.velocity.dy;
-
-        // Rebond sur les murs haut et bas
-        if self.position.y <= 0.0 || self.position.y >= height - 1.0 {
-            self.velocity.dy = -self.velocity.dy;
-            self.position.y = self.position.y.clamp(0.0, height - 1.0);
-        }
-    }
 
     fn reset(&mut self, width: f32, height: f32) {
         *self = Self::new(width, height);

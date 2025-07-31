@@ -41,6 +41,7 @@ pub struct MainMenu {
     audio: AudioManager,
     music_tracks: Vec<MusicTrack>,
     current_playing: Option<usize>,
+    current_variant: Vec<usize>, // Index de la variante sélectionnée pour chaque track
 }
 
 #[derive(Debug, Clone)]
@@ -118,6 +119,9 @@ impl MainMenu {
         audio.set_music_enabled(true);
         audio.set_enabled(true);
 
+        // Initialiser les variantes sélectionnées (index 0 = première variante pour chaque track)
+        let current_variant = vec![0; music_tracks.len()];
+
         Self {
             current_menu: MenuState::Main,
             main_options,
@@ -127,6 +131,7 @@ impl MainMenu {
             audio,
             music_tracks,
             current_playing: None,
+            current_variant,
         }
     }
 
@@ -162,6 +167,20 @@ impl MainMenu {
             KeyCode::Up => {
                 self.previous_item();
                 self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
+                GameAction::Continue
+            }
+            KeyCode::Left => {
+                if self.current_menu == MenuState::MusicPlayer {
+                    self.previous_variant();
+                    self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
+                }
+                GameAction::Continue
+            }
+            KeyCode::Right => {
+                if self.current_menu == MenuState::MusicPlayer {
+                    self.next_variant();
+                    self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
+                }
                 GameAction::Continue
             }
             KeyCode::Enter => {
@@ -265,6 +284,28 @@ impl MainMenu {
         self.list_state.select(Some(0));
     }
     
+    fn next_variant(&mut self) {
+        if let Some(track) = self.music_tracks.get(self.selected_index) {
+            if !track.variants.is_empty() {
+                let current = &mut self.current_variant[self.selected_index];
+                *current = (*current + 1) % track.variants.len();
+            }
+        }
+    }
+    
+    fn previous_variant(&mut self) {
+        if let Some(track) = self.music_tracks.get(self.selected_index) {
+            if !track.variants.is_empty() {
+                let current = &mut self.current_variant[self.selected_index];
+                *current = if *current == 0 {
+                    track.variants.len() - 1
+                } else {
+                    *current - 1
+                };
+            }
+        }
+    }
+    
     fn play_selected_music(&mut self) {
         if let Some(track) = self.music_tracks.get(self.selected_index) {
             self.audio.stop_music(); // Arrêter toute musique en cours
@@ -277,28 +318,64 @@ impl MainMenu {
                 self.audio.set_music_enabled(true);
             }
             
-            // Jouer la musique sélectionnée
+            // Jouer la musique sélectionnée avec la variante choisie
+            let variant_index = self.current_variant[self.selected_index];
+            
             match track.name.as_str() {
                 "Tetris (Korobeiniki)" => {
-                    self.audio.play_tetris_music();
+                    match variant_index {
+                        0 => self.audio.play_tetris_music(), // Normal
+                        1 => self.audio.play_tetris_music_fast(), // Fast
+                        2 => self.audio.play_tetris_music_harmony(), // Celebration
+                        _ => self.audio.play_tetris_music(),
+                    }
                 }
                 "Snake Ambient" => {
-                    self.audio.play_snake_music();
+                    match variant_index {
+                        0 => self.audio.play_snake_music(), // Normal
+                        1 => self.audio.play_snake_music_fast(), // Fast
+                        _ => self.audio.play_snake_music(),
+                    }
                 }
                 "Pong Retro Electronic" => {
-                    self.audio.play_pong_music();
+                    match variant_index {
+                        0 => self.audio.play_pong_music(), // Normal
+                        1 => self.audio.play_pong_music_fast(), // Fast
+                        2 => self.audio.play_pong_music_celebration(), // Celebration
+                        _ => self.audio.play_pong_music(),
+                    }
                 }
                 "2048 Zen Mode" => {
-                    self.audio.play_2048_music();
+                    match variant_index {
+                        0 => self.audio.play_2048_music(), // Normal
+                        1 => self.audio.play_2048_music_fast(), // Fast
+                        2 => self.audio.play_2048_music_celebration(), // Celebration
+                        _ => self.audio.play_2048_music(),
+                    }
                 }
                 "Minesweeper Tension" => {
-                    self.audio.play_minesweeper_music();
+                    match variant_index {
+                        0 => self.audio.play_minesweeper_music(), // Normal
+                        1 => self.audio.play_minesweeper_music_fast(), // Intense
+                        2 => self.audio.play_minesweeper_music_celebration(), // Victory
+                        _ => self.audio.play_minesweeper_music(),
+                    }
                 }
                 "Breakout Arcade" => {
-                    self.audio.play_breakout_music();
+                    match variant_index {
+                        0 => self.audio.play_breakout_music(), // Normal
+                        1 => self.audio.play_breakout_music_fast(), // Intense
+                        2 => self.audio.play_breakout_music_celebration(), // Victory
+                        _ => self.audio.play_breakout_music(),
+                    }
                 }
                 "Game of Life Ambient" => {
-                    self.audio.play_gameoflife_music();
+                    match variant_index {
+                        0 => self.audio.play_gameoflife_music(), // Contemplative
+                        1 => self.audio.play_gameoflife_music_fast(), // Dynamic
+                        2 => self.audio.play_gameoflife_music_celebration(), // Wonder
+                        _ => self.audio.play_gameoflife_music(),
+                    }
                 }
                 _ => {}
             }
@@ -393,7 +470,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
     // === FOOTER ===
     let controls = match app.current_menu {
         MenuState::Main => "Arrow Keys Move • Enter Select • Q Quit",
-        MenuState::MusicPlayer => "Arrow Keys Move • Space/Enter Play • S Stop • Esc/Q Back",
+        MenuState::MusicPlayer => "↑↓ Select Track • ←→ Change Variant • Space/Enter Play • S Stop • Esc/Q Back",
         _ => "Arrow Keys Move • Enter Select • Esc/Q Back",
     };
 
@@ -562,9 +639,22 @@ fn draw_music_player(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
                 "".white()
             };
 
+            // Afficher la variante actuellement sélectionnée en surbrillance
+            let current_variant_idx = app.current_variant[i];
+            let mut variants_display = Vec::new();
+            for (idx, variant) in track.variants.iter().enumerate() {
+                if idx == current_variant_idx {
+                    variants_display.push(format!("[{}]", variant)); // Variante sélectionnée
+                } else {
+                    variants_display.push(variant.clone());
+                }
+            }
+            let variants_text = format!(" ({})", variants_display.join(", "));
+            
             let content = vec![Line::from(vec![
                 Span::styled(format!("  {} ", status), Style::default().fg(Color::Green).bold()),
                 Span::styled(&track.name, Style::default().fg(Color::White).bold()),
+                Span::styled(variants_text, Style::default().fg(Color::Gray)),
                 playing_text,
             ])];
             ListItem::new(content)

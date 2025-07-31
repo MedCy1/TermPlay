@@ -1,4 +1,4 @@
-use super::{GameMusic, create_note, create_chord};
+use super::{GameMusic, create_note};
 use rodio::Sink;
 
 /// Musique relaxante et moderne pour 2048
