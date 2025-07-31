@@ -174,8 +174,8 @@ impl PongGame {
         }
 
         // Relancer la musique si elle est finie
-        if self.music_started && self.audio.is_music_enabled() && self.state == PongState::Playing {
-            if self.audio.is_music_empty() {
+        if self.music_started && self.audio.is_music_enabled() && self.state == PongState::Playing
+            && self.audio.is_music_empty() {
                 // Jouer version rapide si la balle va très vite
                 let ball_speed =
                     (self.ball.velocity.dx.powi(2) + self.ball.velocity.dy.powi(2)).sqrt();
@@ -185,7 +185,6 @@ impl PongGame {
                     self.audio.play_pong_music();
                 }
             }
-        }
     }
 
     fn update_ball(&mut self) {
@@ -247,8 +246,8 @@ impl PongGame {
         let ball_y = self.ball.position.y;
 
         // Collision avec le paddle gauche (joueur 1)
-        if ball_x <= self.player1.position.x + 1.0 && ball_x >= self.player1.position.x {
-            if ball_y >= self.player1.position.y
+        if ball_x <= self.player1.position.x + 1.0 && ball_x >= self.player1.position.x
+            && ball_y >= self.player1.position.y
                 && ball_y <= self.player1.position.y + self.player1.height
             {
                 self.ball.velocity.dx = -self.ball.velocity.dx * 1.05; // Légère accélération
@@ -260,11 +259,10 @@ impl PongGame {
                 self.ball.position.x = self.player1.position.x + 1.0;
                 self.audio.play_sound(SoundEffect::PongPaddleHit);
             }
-        }
 
         // Collision avec le paddle droit (joueur 2 ou IA)
-        if ball_x >= self.player2.position.x - 1.0 && ball_x <= self.player2.position.x {
-            if ball_y >= self.player2.position.y
+        if ball_x >= self.player2.position.x - 1.0 && ball_x <= self.player2.position.x
+            && ball_y >= self.player2.position.y
                 && ball_y <= self.player2.position.y + self.player2.height
             {
                 self.ball.velocity.dx = -self.ball.velocity.dx * 1.05; // Légère accélération
@@ -276,7 +274,6 @@ impl PongGame {
                 self.ball.position.x = self.player2.position.x - 1.0;
                 self.audio.play_sound(SoundEffect::PongPaddleHit);
             }
-        }
     }
 
     fn check_scoring(&mut self) {
@@ -557,8 +554,8 @@ fn draw_game_field(frame: &mut ratatui::Frame, area: Rect, game: &mut PongGame) 
     });
 
     // Calculer les dimensions du terrain de jeu (utilise la taille disponible avec des limites)
-    let field_width = (inner_area.width.min(120).max(40)) as f32; // Largeur max 120, min 40
-    let field_height = (inner_area.height.min(30).max(15)) as f32; // Hauteur max 30, min 15
+    let field_width = inner_area.width.clamp(40, 120) as f32; // Largeur max 120, min 40
+    let field_height = inner_area.height.clamp(15, 30) as f32; // Hauteur max 30, min 15
 
     // Mettre à jour les dimensions du jeu
     game.update_dimensions(field_width, field_height);
@@ -573,7 +570,7 @@ fn draw_game_field(frame: &mut ratatui::Frame, area: Rect, game: &mut PongGame) 
         Line::from(vec![
             "🏓 ".yellow().bold(),
             "PONG ".cyan().bold(),
-            format!("({})", mode_text).gray(),
+            format!("({mode_text})").gray(),
         ]),
         Line::from(vec![
             "Player 1: ".blue().bold(),

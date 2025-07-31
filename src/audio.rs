@@ -107,8 +107,8 @@ impl AudioManager {
         match OutputStreamBuilder::open_default_stream() {
             Ok(stream_handle) => {
                 // Créer deux sinks : un pour les effets, un pour la musique
-                let effects_sink = Sink::connect_new(&stream_handle.mixer());
-                let music_sink = Sink::connect_new(&stream_handle.mixer());
+                let effects_sink = Sink::connect_new(stream_handle.mixer());
+                let music_sink = Sink::connect_new(stream_handle.mixer());
 
                 Ok(Self {
                     _stream: Some(stream_handle),
@@ -122,7 +122,7 @@ impl AudioManager {
                 })
             }
             Err(e) => {
-                eprintln!("Erreur d'initialisation audio: {}", e);
+                eprintln!("Erreur d'initialisation audio: {e}");
                 // Fallback en cas d'échec d'initialisation audio
                 Ok(Self {
                     _stream: None,

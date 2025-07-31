@@ -115,8 +115,8 @@ impl Game2048 {
         }
 
         // Relancer la musique si elle est finie
-        if self.music_started && self.audio.is_music_enabled() && !self.game_over {
-            if self.audio.is_music_empty() {
+        if self.music_started && self.audio.is_music_enabled() && !self.game_over
+            && self.audio.is_music_empty() {
                 // Choisir la version appropriée selon le score actuel
                 if self.score >= 10000 {
                     self.audio.play_2048_music_fast();
@@ -124,7 +124,6 @@ impl Game2048 {
                     self.audio.play_2048_music();
                 }
             }
-        }
     }
 
     fn move_tiles(&mut self, direction: Direction) {
@@ -133,9 +132,9 @@ impl Game2048 {
 
         match direction {
             Direction::Left => {
-                for row in 0..GRID_SIZE {
+                for (_row, grid_row) in new_grid.iter_mut().enumerate().take(GRID_SIZE) {
                     let mut line: Vec<u32> =
-                        new_grid[row].iter().filter(|&&x| x != 0).cloned().collect();
+                        grid_row.iter().filter(|&&x| x != 0).cloned().collect();
 
                     // Fusionner les tuiles adjacentes identiques
                     let mut merged_line = Vec::new();
@@ -170,17 +169,17 @@ impl Game2048 {
 
                     // Vérifier si quelque chose a changé
                     let new_row: [u32; GRID_SIZE] = line.as_slice().try_into().unwrap();
-                    if new_grid[row] != new_row {
+                    if *grid_row != new_row {
                         self.moved = true;
                     }
 
-                    new_grid[row] = new_row;
+                    *grid_row = new_row;
                 }
             }
             Direction::Right => {
-                for row in 0..GRID_SIZE {
+                for (_row, grid_row) in new_grid.iter_mut().enumerate().take(GRID_SIZE) {
                     let mut line: Vec<u32> =
-                        new_grid[row].iter().filter(|&&x| x != 0).cloned().collect();
+                        grid_row.iter().filter(|&&x| x != 0).cloned().collect();
                     line.reverse();
 
                     // Fusionner les tuiles adjacentes identiques
@@ -217,11 +216,11 @@ impl Game2048 {
 
                     // Vérifier si quelque chose a changé
                     let new_row: [u32; GRID_SIZE] = line.as_slice().try_into().unwrap();
-                    if new_grid[row] != new_row {
+                    if *grid_row != new_row {
                         self.moved = true;
                     }
 
-                    new_grid[row] = new_row;
+                    *grid_row = new_row;
                 }
             }
             Direction::Up => {
@@ -547,7 +546,7 @@ fn draw_2048_game(frame: &mut ratatui::Frame, game: &Game2048) {
             let cell_text = if value == 0 {
                 String::new()
             } else {
-                format!("{}", value)
+                format!("{value}")
             };
 
             let cell_color = Game2048::get_tile_color(value);

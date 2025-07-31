@@ -143,9 +143,9 @@ impl Piece {
         let cols = shape[0].len();
         let mut rotated = vec![vec![false; rows]; cols];
 
-        for i in 0..rows {
-            for j in 0..cols {
-                rotated[j][rows - 1 - i] = shape[i][j];
+        for (i, shape_row) in shape.iter().enumerate().take(rows) {
+            for (j, rotated_col) in rotated.iter_mut().enumerate().take(cols) {
+                rotated_col[rows - 1 - i] = shape_row[j];
             }
         }
         rotated
@@ -254,7 +254,7 @@ impl TetrisGame {
         // Jouer le son approprié selon le nombre de lignes
         if !lines_to_clear.is_empty() {
             match lines_to_clear.len() {
-                1 | 2 | 3 => self.audio.play_sound(SoundEffect::TetrisLineClear),
+                1..=3 => self.audio.play_sound(SoundEffect::TetrisLineClear),
                 4 => {
                     self.audio.play_sound(SoundEffect::TetrisTetris); // TETRIS!
                     self.tetris_celebration = 120; // Afficher "TETRIS!" pendant 120 frames
@@ -360,8 +360,8 @@ impl TetrisGame {
         }
 
         // Relancer la musique si elle est finie
-        if self.music_started && self.audio.is_music_enabled() {
-            if self.audio.is_music_empty() {
+        if self.music_started && self.audio.is_music_enabled()
+            && self.audio.is_music_empty() {
                 // Choisir la version appropriée selon le niveau actuel
                 if self.level >= 7 {
                     self.audio.play_tetris_music_fast();
@@ -369,7 +369,6 @@ impl TetrisGame {
                     self.audio.play_tetris_music();
                 }
             }
-        }
     }
 }
 

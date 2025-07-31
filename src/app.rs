@@ -31,7 +31,7 @@ impl App {
             self.restore_terminal(&mut terminal)?;
             result
         } else {
-            eprintln!("Game '{}' not found!", game_name);
+            eprintln!("Game '{game_name}' not found!");
             Ok(())
         }
     }
@@ -39,7 +39,7 @@ impl App {
     pub fn run_menu(&mut self) -> GameResult {
         let mut terminal = self.setup_terminal()?;
         let mut menu = MainMenu::new(self.registry.list_games())
-            .map_err(|e| format!("Failed to initialize menu: {}", e))?;
+            .map_err(|e| format!("Failed to initialize menu: {e}"))?;
         let mut last_tick = Instant::now();
 
         loop {
@@ -62,7 +62,7 @@ impl App {
                                         self.run_game_loop(&mut game, &mut terminal)?;
                                         // Recréer le menu après le jeu en préservant la configuration
                                         menu = MainMenu::new(self.registry.list_games()).map_err(
-                                            |e| format!("Failed to recreate menu: {}", e),
+                                            |e| format!("Failed to recreate menu: {e}"),
                                         )?;
                                     }
                                 }

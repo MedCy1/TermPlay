@@ -54,7 +54,7 @@ impl GameMusic for TetrisMusic {
         ];
 
         // Ligne de basse simple pour accompagnement
-        let bass_notes = vec![
+        let bass_notes = [
             (329.0, 800), // E3
             (220.0, 800), // A3
             (207.0, 800), // Ab3

@@ -23,18 +23,10 @@ impl Default for AudioConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GameConfig {
     pub audio: AudioConfig,
     // Ici on pourra ajouter plus tard : high_scores, game_settings, etc.
-}
-
-impl Default for GameConfig {
-    fn default() -> Self {
-        Self {
-            audio: AudioConfig::default(),
-        }
-    }
 }
 
 pub struct ConfigManager {

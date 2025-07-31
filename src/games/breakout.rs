@@ -140,11 +140,11 @@ impl BreakoutGame {
         let ball = Ball::new(paddle.x + PADDLE_WIDTH as f32 / 2.0, paddle.y - 1.0);
 
         let mut bricks = [[Brick::new(0, 0, 0); BRICK_COLS]; BRICK_ROWS];
-        for row in 0..BRICK_ROWS {
-            for col in 0..BRICK_COLS {
+        for (row, brick_row) in bricks.iter_mut().enumerate().take(BRICK_ROWS) {
+            for (col, brick) in brick_row.iter_mut().enumerate().take(BRICK_COLS) {
                 let x = 1 + col as u16 * (BRICK_WIDTH + 1);
                 let y = 2 + row as u16 * (BRICK_HEIGHT + 1);
-                bricks[row][col] = Brick::new(x, y, row);
+                *brick = Brick::new(x, y, row);
             }
         }
 
@@ -185,8 +185,8 @@ impl BreakoutGame {
         }
 
         // Relancer la musique si elle est finie
-        if self.music_started && self.audio.is_music_enabled() && self.state == GameState::Playing {
-            if self.audio.is_music_empty() {
+        if self.music_started && self.audio.is_music_enabled() && self.state == GameState::Playing
+            && self.audio.is_music_empty() {
                 let remaining_bricks = self.count_remaining_bricks();
                 let total_bricks = (BRICK_ROWS * BRICK_COLS) as u32;
                 let completion_ratio = 1.0 - (remaining_bricks as f32 / total_bricks as f32);
@@ -197,7 +197,6 @@ impl BreakoutGame {
                     self.audio.play_breakout_music();
                 }
             }
-        }
     }
 
     fn count_remaining_bricks(&self) -> u32 {
@@ -325,11 +324,11 @@ impl BreakoutGame {
         let ball = Ball::new(paddle.x + PADDLE_WIDTH as f32 / 2.0, paddle.y - 1.0);
 
         let mut bricks = [[Brick::new(0, 0, 0); BRICK_COLS]; BRICK_ROWS];
-        for row in 0..BRICK_ROWS {
-            for col in 0..BRICK_COLS {
+        for (row, brick_row) in bricks.iter_mut().enumerate().take(BRICK_ROWS) {
+            for (col, brick) in brick_row.iter_mut().enumerate().take(BRICK_COLS) {
                 let x = 1 + col as u16 * (BRICK_WIDTH + 1);
                 let y = 2 + row as u16 * (BRICK_HEIGHT + 1);
-                bricks[row][col] = Brick::new(x, y, row);
+                *brick = Brick::new(x, y, row);
             }
         }
 

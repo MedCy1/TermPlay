@@ -153,8 +153,8 @@ impl SnakeGame {
         }
 
         // Relancer la musique si elle est finie
-        if self.music_started && self.audio.is_music_enabled() {
-            if self.audio.is_music_empty() {
+        if self.music_started && self.audio.is_music_enabled()
+            && self.audio.is_music_empty() {
                 // Choisir la version appropriée selon la longueur actuelle
                 if self.snake.len() >= 15 {
                     self.audio.play_snake_music_fast();
@@ -162,7 +162,6 @@ impl SnakeGame {
                     self.audio.play_snake_music();
                 }
             }
-        }
     }
 }
 
@@ -301,9 +300,9 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
             "Score: ".yellow(),
             format!("{}", app.score).white().bold(),
             " | Length: ".gray(),
-            format!("{}", snake_length).green().bold(),
+            format!("{snake_length}").green().bold(),
             " | Speed: ".gray(),
-            format!("{}ms", current_speed).red().bold(),
+            format!("{current_speed}ms").red().bold(),
             " | Audio: ".gray(),
             audio_status.white(),
         ]),

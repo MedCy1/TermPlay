@@ -437,8 +437,7 @@ impl MainMenu {
             *config = current_audio_config;
         }) {
             eprintln!(
-                "Erreur lors de la sauvegarde de la configuration audio: {}",
-                e
+                "Erreur lors de la sauvegarde de la configuration audio: {e}"
             );
         }
     }
@@ -537,12 +536,11 @@ impl MainMenu {
 
     pub fn update(&mut self) {
         // Gérer la boucle de musique si on est dans le music player
-        if self.current_menu == MenuState::MusicPlayer && self.current_playing.is_some() {
-            if self.audio.is_music_enabled() && self.audio.is_music_empty() {
+        if self.current_menu == MenuState::MusicPlayer && self.current_playing.is_some()
+            && self.audio.is_music_enabled() && self.audio.is_music_empty() {
                 // Relancer la musique si elle est finie
                 self.play_selected_music();
             }
-        }
     }
 }
 
@@ -687,7 +685,7 @@ fn draw_games_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
 
             let content = vec![Line::from(vec![
                 Span::styled(
-                    format!("  {} ", icon),
+                    format!("  {icon} "),
                     Style::default().fg(Color::Green).bold(),
                 ),
                 Span::styled(
@@ -721,7 +719,7 @@ fn draw_games_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
 }
 
 fn draw_settings_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
-    let settings_options = vec![
+    let settings_options = [
         "🔊 Audio Settings",
         "🎨 Graphics Settings (Coming soon)",
         "⌨️ Controls Settings (Coming soon)",
@@ -777,7 +775,7 @@ fn draw_audio_settings_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
         )
     };
 
-    let audio_settings = vec![
+    let audio_settings = [
         format!("🎚️ Master Volume     {}", create_volume_bar(master_volume)),
         format!("🔊 Effects Volume    {}", create_volume_bar(volume)),
         format!("🎵 Music Volume      {}", create_volume_bar(music_volume)),
@@ -873,7 +871,7 @@ fn draw_music_player(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
             let mut variants_display = Vec::new();
             for (idx, variant) in track.variants.iter().enumerate() {
                 if idx == current_variant_idx {
-                    variants_display.push(format!("[{}]", variant)); // Variante sélectionnée
+                    variants_display.push(format!("[{variant}]")); // Variante sélectionnée
                 } else {
                     variants_display.push(variant.clone());
                 }
@@ -882,7 +880,7 @@ fn draw_music_player(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
 
             let content = vec![Line::from(vec![
                 Span::styled(
-                    format!("  {} ", status),
+                    format!("  {status} "),
                     Style::default().fg(Color::Green).bold(),
                 ),
                 Span::styled(&track.name, Style::default().fg(Color::White).bold()),

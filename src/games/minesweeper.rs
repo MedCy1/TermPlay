@@ -118,8 +118,8 @@ impl MinesweeperGame {
         }
 
         // Relancer la musique si elle est finie
-        if self.music_started && self.audio.is_music_enabled() && !self.game_over && !self.won {
-            if self.audio.is_music_empty() {
+        if self.music_started && self.audio.is_music_enabled() && !self.game_over && !self.won
+            && self.audio.is_music_empty() {
                 let flag_ratio = self.flags_used as f32 / MINE_COUNT as f32;
                 if flag_ratio > 0.7 {
                     self.audio.play_minesweeper_music_fast();
@@ -127,7 +127,6 @@ impl MinesweeperGame {
                     self.audio.play_minesweeper_music();
                 }
             }
-        }
     }
 
     fn count_adjacent_mines(&self, x: usize, y: usize) -> u8 {
@@ -432,7 +431,7 @@ fn draw_minesweeper_game(frame: &mut ratatui::Frame, game: &MinesweeperGame) {
         ]),
         Line::from(vec![
             "Mines Left: ".yellow(),
-            format!("{}", mines_left).white().bold(),
+            format!("{mines_left}").white().bold(),
             " | Flags Used: ".gray(),
             format!("{}", game.flags_used).red().bold(),
         ]),

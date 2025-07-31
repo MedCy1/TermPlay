@@ -118,8 +118,8 @@ impl GameOfLife {
         }
 
         // Relancer la musique si elle est finie
-        if self.music_started && self.audio.is_music_enabled() {
-            if self.audio.is_music_empty() {
+        if self.music_started && self.audio.is_music_enabled()
+            && self.audio.is_music_empty() {
                 match self.state {
                     GameState::Running => {
                         if self.speed >= 4 {
@@ -133,7 +133,6 @@ impl GameOfLife {
                     }
                 }
             }
-        }
     }
 
     fn resize_grid(&mut self, width: usize, height: usize) {
@@ -145,10 +144,9 @@ impl GameOfLife {
         let mut new_grid = [[CellState::Dead; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT];
 
         // Copier les cellules existantes si elles rentrent dans la nouvelle taille
-        for y in 0..new_height.min(self.grid_height) {
-            for x in 0..new_width.min(self.grid_width) {
-                new_grid[y][x] = self.grid[y][x];
-            }
+        for (y, new_row) in new_grid.iter_mut().enumerate().take(new_height.min(self.grid_height)) {
+            let width = new_width.min(self.grid_width);
+            new_row[..width].copy_from_slice(&self.grid[y][..width]);
         }
 
         self.grid = new_grid;
@@ -343,7 +341,7 @@ impl GameOfLife {
     }
 
     fn change_speed(&mut self, delta: i8) {
-        self.speed = ((self.speed as i8 + delta).max(1).min(5)) as u8;
+        self.speed = (self.speed as i8 + delta).clamp(1, 5) as u8;
     }
 
     fn get_tick_rate(&self) -> Duration {

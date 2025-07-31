@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if app.has_game(&name) {
                 app.run_game(&name)?;
             } else {
-                eprintln!("Game '{}' not found!", name);
+                eprintln!("Game '{name}' not found!");
                 eprintln!("Use 'termplay list' to see available games.");
                 std::process::exit(1);
             }
