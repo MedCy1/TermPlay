@@ -5,12 +5,22 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Style, Stylize},
     text::Line,
-    widgets::{Block, Clear, Paragraph},
+    widgets::{Block, Paragraph},
 };
 use std::time::Duration;
 
-const GRID_WIDTH: usize = 80;
-const GRID_HEIGHT: usize = 30;
+// Tailles de grille prédéfinies
+const SMALL_WIDTH: usize = 40;
+const SMALL_HEIGHT: usize = 20;
+const MEDIUM_WIDTH: usize = 60;
+const MEDIUM_HEIGHT: usize = 30;
+const LARGE_WIDTH: usize = 80;
+const LARGE_HEIGHT: usize = 40;
+const HUGE_WIDTH: usize = 120;
+const HUGE_HEIGHT: usize = 60;
+
+const MAX_GRID_WIDTH: usize = HUGE_WIDTH;
+const MAX_GRID_HEIGHT: usize = HUGE_HEIGHT;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CellState {
@@ -36,44 +46,85 @@ pub enum Pattern {
 }
 
 pub struct GameOfLife {
-    grid: [[CellState; GRID_WIDTH]; GRID_HEIGHT],
-    next_grid: [[CellState; GRID_WIDTH]; GRID_HEIGHT],
+    grid: [[CellState; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT],
+    next_grid: [[CellState; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT],
     state: GameState,
     generation: u32,
     cursor_x: usize,
     cursor_y: usize,
+    camera_x: usize, // Position de la caméra pour la vue
+    camera_y: usize,
     speed: u8, // 1-5, plus élevé = plus rapide
+    grid_width: usize,
+    grid_height: usize,
 }
 
 impl GameOfLife {
     pub fn new() -> Self {
         let mut game = Self {
-            grid: [[CellState::Dead; GRID_WIDTH]; GRID_HEIGHT],
-            next_grid: [[CellState::Dead; GRID_WIDTH]; GRID_HEIGHT],
+            grid: [[CellState::Dead; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT],
+            next_grid: [[CellState::Dead; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT],
             state: GameState::Editing,
             generation: 0,
-            cursor_x: GRID_WIDTH / 2,
-            cursor_y: GRID_HEIGHT / 2,
+            cursor_x: MEDIUM_WIDTH / 2,
+            cursor_y: MEDIUM_HEIGHT / 2,
+            camera_x: MEDIUM_WIDTH / 2,
+            camera_y: MEDIUM_HEIGHT / 2,
             speed: 3,
+            grid_width: MEDIUM_WIDTH,
+            grid_height: MEDIUM_HEIGHT,
         };
         
         // Commencer avec un pattern initial
-        game.place_pattern(Pattern::Glider, GRID_WIDTH / 2, GRID_HEIGHT / 2);
-        game.place_pattern(Pattern::Blinker, GRID_WIDTH / 2 - 10, GRID_HEIGHT / 2 - 5);
-        game.place_pattern(Pattern::Block, GRID_WIDTH / 2 + 10, GRID_HEIGHT / 2 + 5);
+        game.place_pattern(Pattern::Glider, game.grid_width / 2, game.grid_height / 2);
+        game.place_pattern(Pattern::Blinker, game.grid_width / 2 - 10, game.grid_height / 2 - 5);
+        game.place_pattern(Pattern::Block, game.grid_width / 2 + 10, game.grid_height / 2 + 5);
         
         game
     }
     
+    fn resize_grid(&mut self, width: usize, height: usize) {
+        // Limiter aux dimensions maximales
+        let new_width = width.min(MAX_GRID_WIDTH);
+        let new_height = height.min(MAX_GRID_HEIGHT);
+        
+        // Créer une nouvelle grille vide
+        let mut new_grid = [[CellState::Dead; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT];
+        
+        // Copier les cellules existantes si elles rentrent dans la nouvelle taille
+        for y in 0..new_height.min(self.grid_height) {
+            for x in 0..new_width.min(self.grid_width) {
+                new_grid[y][x] = self.grid[y][x];
+            }
+        }
+        
+        self.grid = new_grid;
+        self.next_grid = [[CellState::Dead; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT];
+        self.grid_width = new_width;
+        self.grid_height = new_height;
+        
+        // Ajuster la position du curseur et de la caméra
+        self.cursor_x = self.cursor_x.min(new_width.saturating_sub(1));
+        self.cursor_y = self.cursor_y.min(new_height.saturating_sub(1));
+        self.camera_x = self.camera_x.min(new_width.saturating_sub(1));
+        self.camera_y = self.camera_y.min(new_height.saturating_sub(1));
+        
+        self.generation = 0;
+    }
+    
     fn clear_grid(&mut self) {
-        self.grid = [[CellState::Dead; GRID_WIDTH]; GRID_HEIGHT];
+        for y in 0..self.grid_height {
+            for x in 0..self.grid_width {
+                self.grid[y][x] = CellState::Dead;
+            }
+        }
         self.generation = 0;
     }
     
     fn randomize_grid(&mut self) {
         let mut rng = rand::rng();
-        for row in 0..GRID_HEIGHT {
-            for col in 0..GRID_WIDTH {
+        for row in 0..self.grid_height {
+            for col in 0..self.grid_width {
                 self.grid[row][col] = if rng.random_bool(0.3) {
                     CellState::Alive
                 } else {
@@ -120,7 +171,7 @@ impl GameOfLife {
         for (dx, dy) in pattern_cells {
             let x = start_x + dx;
             let y = start_y + dy;
-            if x < GRID_WIDTH && y < GRID_HEIGHT {
+            if x < self.grid_width && y < self.grid_height {
                 self.grid[y][x] = CellState::Alive;
             }
         }
@@ -138,7 +189,7 @@ impl GameOfLife {
                 let nx = x as i32 + dx;
                 let ny = y as i32 + dy;
                 
-                if nx >= 0 && nx < GRID_WIDTH as i32 && ny >= 0 && ny < GRID_HEIGHT as i32 {
+                if nx >= 0 && nx < self.grid_width as i32 && ny >= 0 && ny < self.grid_height as i32 {
                     let nx = nx as usize;
                     let ny = ny as usize;
                     if self.grid[ny][nx] == CellState::Alive {
@@ -153,8 +204,8 @@ impl GameOfLife {
     
     fn update_generation(&mut self) {
         // Calculer la prochaine génération
-        for y in 0..GRID_HEIGHT {
-            for x in 0..GRID_WIDTH {
+        for y in 0..self.grid_height {
+            for x in 0..self.grid_width {
                 let neighbors = self.count_neighbors(x, y);
                 let current_cell = self.grid[y][x];
                 
@@ -179,7 +230,7 @@ impl GameOfLife {
     }
     
     fn toggle_cell(&mut self, x: usize, y: usize) {
-        if x < GRID_WIDTH && y < GRID_HEIGHT {
+        if x < self.grid_width && y < self.grid_height {
             self.grid[y][x] = match self.grid[y][x] {
                 CellState::Alive => CellState::Dead,
                 CellState::Dead => CellState::Alive,
@@ -218,28 +269,69 @@ impl Game for GameOfLife {
     
     fn handle_key(&mut self, key: KeyEvent) -> GameAction {
         match key.code {
-            // Contrôles de mouvement du curseur (en mode édition)
+            // Contrôles de mouvement
             KeyCode::Up | KeyCode::Char('w') => {
-                if self.state == GameState::Editing && self.cursor_y > 0 {
-                    self.cursor_y -= 1;
+                match self.state {
+                    GameState::Editing => {
+                        if self.cursor_y > 0 {
+                            self.cursor_y -= 1;
+                            self.camera_y = self.cursor_y; // La caméra suit le curseur
+                        }
+                    }
+                    _ => {
+                        // En mode observation, déplacer la caméra
+                        if self.camera_y > 0 {
+                            self.camera_y -= 1;
+                        }
+                    }
                 }
                 GameAction::Continue
             }
             KeyCode::Down | KeyCode::Char('s') => {
-                if self.state == GameState::Editing && self.cursor_y < GRID_HEIGHT - 1 {
-                    self.cursor_y += 1;
+                match self.state {
+                    GameState::Editing => {
+                        if self.cursor_y < self.grid_height - 1 {
+                            self.cursor_y += 1;
+                            self.camera_y = self.cursor_y;
+                        }
+                    }
+                    _ => {
+                        if self.camera_y < self.grid_height - 1 {
+                            self.camera_y += 1;
+                        }
+                    }
                 }
                 GameAction::Continue
             }
             KeyCode::Left | KeyCode::Char('a') => {
-                if self.state == GameState::Editing && self.cursor_x > 0 {
-                    self.cursor_x -= 1;
+                match self.state {
+                    GameState::Editing => {
+                        if self.cursor_x > 0 {
+                            self.cursor_x -= 1;
+                            self.camera_x = self.cursor_x;
+                        }
+                    }
+                    _ => {
+                        if self.camera_x > 0 {
+                            self.camera_x -= 1;
+                        }
+                    }
                 }
                 GameAction::Continue
             }
             KeyCode::Right | KeyCode::Char('d') => {
-                if self.state == GameState::Editing && self.cursor_x < GRID_WIDTH - 1 {
-                    self.cursor_x += 1;
+                match self.state {
+                    GameState::Editing => {
+                        if self.cursor_x < self.grid_width - 1 {
+                            self.cursor_x += 1;
+                            self.camera_x = self.cursor_x;
+                        }
+                    }
+                    _ => {
+                        if self.camera_x < self.grid_width - 1 {
+                            self.camera_x += 1;
+                        }
+                    }
                 }
                 GameAction::Continue
             }
@@ -320,6 +412,24 @@ impl Game for GameOfLife {
                 GameAction::Continue
             }
             
+            // Tailles de grille
+            KeyCode::F(1) => {
+                self.resize_grid(SMALL_WIDTH, SMALL_HEIGHT);
+                GameAction::Continue
+            }
+            KeyCode::F(2) => {
+                self.resize_grid(MEDIUM_WIDTH, MEDIUM_HEIGHT);
+                GameAction::Continue
+            }
+            KeyCode::F(3) => {
+                self.resize_grid(LARGE_WIDTH, LARGE_HEIGHT);
+                GameAction::Continue
+            }
+            KeyCode::F(4) => {
+                self.resize_grid(HUGE_WIDTH, HUGE_HEIGHT);
+                GameAction::Continue
+            }
+            
             // Utilitaires
             KeyCode::Char('c') => {
                 self.clear_grid();
@@ -390,6 +500,8 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
             state_text,
             "  Speed: ".white(),
             format!("{}/5", game.speed).green().bold(),
+            "  Size: ".white(),
+            format!("{}x{}", game.grid_width, game.grid_height).cyan().bold(),
         ]),
     ];
     
@@ -421,20 +533,20 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
     let cell_height = 1; // Hauteur de chaque cellule
     
     // Calculer combien de cellules on peut afficher
-    let cells_per_row = (inner_area.width as usize / cell_width).min(GRID_WIDTH);
-    let cells_per_col = (inner_area.height as usize / cell_height).min(GRID_HEIGHT);
+    let cells_per_row = (inner_area.width as usize / cell_width).min(game.grid_width);
+    let cells_per_col = (inner_area.height as usize / cell_height).min(game.grid_height);
     
-    // Calculer l'offset pour centrer la vue sur le curseur
-    let start_x = if GRID_WIDTH > cells_per_row {
-        game.cursor_x.saturating_sub(cells_per_row / 2)
-            .min(GRID_WIDTH - cells_per_row)
+    // Calculer l'offset pour centrer la vue sur la caméra
+    let start_x = if game.grid_width > cells_per_row {
+        game.camera_x.saturating_sub(cells_per_row / 2)
+            .min(game.grid_width - cells_per_row)
     } else {
         0
     };
     
-    let start_y = if GRID_HEIGHT > cells_per_col {
-        game.cursor_y.saturating_sub(cells_per_col / 2)
-            .min(GRID_HEIGHT - cells_per_col)
+    let start_y = if game.grid_height > cells_per_col {
+        game.camera_y.saturating_sub(cells_per_col / 2)
+            .min(game.grid_height - cells_per_col)
     } else {
         0
     };
@@ -451,7 +563,7 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
             let grid_x = start_x + display_x;
             let grid_y = start_y + display_y;
             
-            if grid_x >= GRID_WIDTH || grid_y >= GRID_HEIGHT {
+            if grid_x >= game.grid_width || grid_y >= game.grid_height {
                 continue;
             }
             
@@ -505,6 +617,8 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
                 " Patterns".white(),
             ]),
             Line::from(vec![
+                "F1-F4".cyan().bold(),
+                " Size  ".white(),
                 "C".red().bold(),
                 " Clear  ".white(),
                 "R".green().bold(),
@@ -519,40 +633,50 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
             Line::from(vec![
                 "RUNNING".green().bold(),
                 "  ".white(),
+                "↑↓←→".cyan().bold(),
+                " Pan  ".white(),
                 "P".yellow().bold(),
                 " Pause  ".white(),
                 "E".cyan().bold(),
                 " Edit  ".white(),
                 "±".cyan().bold(),
-                " Speed  ".white(),
-                "Q".red().bold(),
-                " Quit".white(),
+                " Speed".white(),
             ]),
             Line::from(vec![
-                "Generation: ".gray(),
+                "F1-F4".cyan().bold(),
+                " Size  ".white(),
+                "Gen: ".gray(),
                 format!("{}", game.generation).yellow().bold(),
                 "  Speed: ".gray(),
                 format!("{}/5", game.speed).green().bold(),
+                "  ".white(),
+                "Q".red().bold(),
+                " Quit".white(),
             ]),
         ],
         GameState::Paused => vec![
             Line::from(vec![
                 "PAUSED".yellow().bold(),
                 "  ".white(),
+                "↑↓←→".cyan().bold(),
+                " Pan  ".white(),
                 "P".green().bold(),
                 " Resume  ".white(),
                 "E".cyan().bold(),
                 " Edit  ".white(),
                 "N".blue().bold(),
-                " Step  ".white(),
-                "Q".red().bold(),
-                " Quit".white(),
+                " Step".white(),
             ]),
             Line::from(vec![
-                "Generation: ".gray(),
+                "F1-F4".cyan().bold(),
+                " Size  ".white(),
+                "Gen: ".gray(),
                 format!("{}", game.generation).yellow().bold(),
                 "  Speed: ".gray(),
                 format!("{}/5", game.speed).green().bold(),
+                "  ".white(),
+                "Q".red().bold(),
+                " Quit".white(),
             ]),
         ],
     };
@@ -570,8 +694,8 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
     // === POPUP D'AIDE PATTERNS ===
     if game.state == GameState::Editing {
         // Afficher l'aide des patterns dans un coin
-        let help_width = 30;
-        let help_height = 10;
+        let help_width = 32;
+        let help_height = 14;
         let help_area = Rect {
             x: area.width.saturating_sub(help_width),
             y: chunks[0].height,
@@ -588,7 +712,11 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
             Line::from(" 5 - Beacon".white()),
             Line::from(" 6 - Pulsar".white()),
             Line::from(""),
-            Line::from(" Cursor: Yellow".yellow()),
+            Line::from(" Grid Sizes:".cyan().bold()),
+            Line::from(" F1 - Small (40x20)".white()),
+            Line::from(" F2 - Medium (60x30)".white()),
+            Line::from(" F3 - Large (80x40)".white()),
+            Line::from(" F4 - Huge (120x60)".white()),
         ];
         
         let help_popup = Paragraph::new(help_text)
