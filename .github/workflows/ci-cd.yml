@@ -94,28 +94,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libasound2-dev
           
-      - name: Install Linux cross-compilation tools
-        if: matrix.os == 'ubuntu-latest' && matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu libasound2-dev:arm64
-          
-      - name: Configure cross-compilation environment
+      - name: Install cross for cross-compilation
         if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
-          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config.toml
-          echo '' >> ~/.cargo/config.toml
-          echo '[env]' >> ~/.cargo/config.toml
-          echo 'PKG_CONFIG_ALLOW_CROSS = "1"' >> ~/.cargo/config.toml
-          echo 'PKG_CONFIG_PATH = "/usr/lib/aarch64-linux-gnu/pkgconfig"' >> ~/.cargo/config.toml
+        run: cargo install cross --git https://github.com/cross-rs/cross
 
       # Build du projet
-      - name: Build release binary
-        env:
-          PKG_CONFIG_ALLOW_CROSS: ${{ matrix.target == 'aarch64-unknown-linux-gnu' && '1' || '' }}
-          PKG_CONFIG_PATH: ${{ matrix.target == 'aarch64-unknown-linux-gnu' && '/usr/lib/aarch64-linux-gnu/pkgconfig' || '' }}
-          CC_aarch64_unknown_linux_gnu: ${{ matrix.target == 'aarch64-unknown-linux-gnu' && 'aarch64-linux-gnu-gcc' || '' }}
+      - name: Build release binary (native)
+        if: matrix.target != 'aarch64-unknown-linux-gnu'
         run: cargo build --release --target ${{ matrix.target }}
+        
+      - name: Build release binary (cross-compilation)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: cross build --release --target ${{ matrix.target }}
 
       # Preparation des binaires pour upload
       - name: Prepare binary (Unix)
