@@ -168,17 +168,9 @@ cargo build --release --target x86_64-unknown-linux-gnu
 - [x] **Minesweeper** - Classic mine detection game
 - [x] **Breakout** - Brick breaking arcade game
 - [x] **Conway's Game of Life** - Cellular automaton visualization
+- [x] **Sound Effects** - Audio feedback
 
 ### 🚧 In Progress / Planned
-- [ ] **Sound Effects** - Audio feedback for game events
-  - [x] Snake
-  - [x] Tetris
-  - [x] Menu
-  - [x] Pong
-  - [x] 2048
-  - [x] Minesweeper
-  - [x] Breakout
-  - [x] Conway's Game of Life
 - [ ] **High Scores** - Persistent leaderboards
 - [ ] **Themes** - Customizable color schemes
 - [ ] **Replay System** - Record and playback games
