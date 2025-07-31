@@ -1,6 +1,6 @@
 use crate::core::{GameAction, GameInfo};
 use crate::audio::AudioManager;
-use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC, minesweeper::MINESWEEPER_MUSIC};
+use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC, minesweeper::MINESWEEPER_MUSIC, breakout::BREAKOUT_MUSIC};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
@@ -101,6 +101,10 @@ impl MainMenu {
             },
             MusicTrack {
                 name: MINESWEEPER_MUSIC.name().to_string(),
+                variants: vec!["Normal".to_string(), "Intense".to_string(), "Victory".to_string()],
+            },
+            MusicTrack {
+                name: BREAKOUT_MUSIC.name().to_string(),
                 variants: vec!["Normal".to_string(), "Intense".to_string(), "Victory".to_string()],
             },
         ];
@@ -277,6 +281,9 @@ impl MainMenu {
                 "Minesweeper Tension" => {
                     self.audio.play_minesweeper_music();
                 }
+                "Breakout Arcade" => {
+                    self.audio.play_breakout_music();
+                }
                 _ => {}
             }
             
@@ -437,6 +444,7 @@ fn draw_games_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
                 "pong" => "🏓",
                 "2048" => "🔢",
                 "Minesweeper" => "💣",
+                "Breakout" => "🧱",
                 _ => "🎮",
             };
 

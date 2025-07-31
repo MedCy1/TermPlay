@@ -1,4 +1,5 @@
 use crate::core::{Game, GameAction};
+use crate::audio::{AudioManager, SoundEffect};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
@@ -127,6 +128,10 @@ pub struct BreakoutGame {
     score: u32,
     lives: u32,
     ball_stuck: bool,
+    
+    // Audio
+    audio: AudioManager,
+    music_started: bool,
 }
 
 impl BreakoutGame {
@@ -154,6 +159,9 @@ impl BreakoutGame {
             score: 0,
             lives: 3,
             ball_stuck: true,
+            
+            audio: AudioManager::default(),
+            music_started: false,
         }
     }
 
@@ -162,20 +170,67 @@ impl BreakoutGame {
             self.ball_stuck = false;
         }
     }
+    
+    fn start_music_if_needed(&mut self) {
+        if !self.music_started && self.audio.is_music_enabled() && self.state == GameState::Playing {
+            // Compter les briques restantes pour choisir la musique
+            let remaining_bricks = self.count_remaining_bricks();
+            let total_bricks = (BRICK_ROWS * BRICK_COLS) as u32;
+            let completion_ratio = 1.0 - (remaining_bricks as f32 / total_bricks as f32);
+            
+            if completion_ratio > 0.7 {
+                self.audio.play_breakout_music_fast(); // Version intense pour fin de partie
+            } else {
+                self.audio.play_breakout_music(); // Version arcade normale
+            }
+            self.music_started = true;
+        }
+        
+        // Relancer la musique si elle est finie
+        if self.music_started && self.audio.is_music_enabled() && self.state == GameState::Playing {
+            if self.audio.is_music_empty() {
+                let remaining_bricks = self.count_remaining_bricks();
+                let total_bricks = (BRICK_ROWS * BRICK_COLS) as u32;
+                let completion_ratio = 1.0 - (remaining_bricks as f32 / total_bricks as f32);
+                
+                if completion_ratio > 0.7 {
+                    self.audio.play_breakout_music_fast();
+                } else {
+                    self.audio.play_breakout_music();
+                }
+            }
+        }
+    }
+    
+    fn count_remaining_bricks(&self) -> u32 {
+        let mut count = 0;
+        for row in &self.bricks {
+            for brick in row {
+                if !brick.destroyed {
+                    count += 1;
+                }
+            }
+        }
+        count
+    }
 
     fn check_collisions(&mut self) {
         // Collision avec les murs
         if self.ball.x <= 0.0 {
             self.ball.x = 0.0;
             self.ball.bounce_x();
+            // Son de collision avec les murs (réutilise le son Pong)
+            self.audio.play_sound(SoundEffect::PongWallHit);
         }
         if self.ball.x >= FIELD_WIDTH as f32 - 1.0 {
             self.ball.x = FIELD_WIDTH as f32 - 1.0;
             self.ball.bounce_x();
+            self.audio.play_sound(SoundEffect::PongWallHit);
         }
         if self.ball.y <= 0.0 {
             self.ball.y = 0.0;
             self.ball.bounce_y();
+            self.audio.play_sound(SoundEffect::PongWallHit);
         }
 
         // Collision avec la raquette
@@ -191,6 +246,9 @@ impl BreakoutGame {
             let angle_factor = (hit_pos - 0.5) * 2.0; // -1 à 1
             self.ball.dx = angle_factor * 1.2;
             self.ball.dy = -self.ball.dy.abs(); // Toujours vers le haut
+            
+            // Son de collision avec la raquette
+            self.audio.play_sound(SoundEffect::BreakoutPaddleHit);
         }
 
         // Collision avec les briques
@@ -212,6 +270,9 @@ impl BreakoutGame {
                     brick.destroyed = true;
                     self.score += 10;
                     self.ball.bounce_y();
+                    
+                    // Son de destruction de brique
+                    self.audio.play_sound(SoundEffect::BreakoutBrickHit);
                     break;
                 }
             }
@@ -222,6 +283,8 @@ impl BreakoutGame {
             self.lives -= 1;
             if self.lives == 0 {
                 self.state = GameState::GameOver;
+                // Son de game over
+                self.audio.play_sound(SoundEffect::BreakoutGameOver);
             } else {
                 self.ball.reset(self.paddle.x);
                 self.ball_stuck = true;
@@ -231,6 +294,10 @@ impl BreakoutGame {
         // Vérifier la victoire
         if self.all_bricks_destroyed() {
             self.state = GameState::Victory;
+            // Musique de victoire
+            self.audio.stop_music();
+            self.audio.play_breakout_music_celebration();
+            self.music_started = false;
         }
     }
 
@@ -278,6 +345,9 @@ impl BreakoutGame {
         self.score = 0;
         self.lives = 3;
         self.ball_stuck = true;
+        
+        self.audio.stop_music();
+        self.music_started = false;
     }
 }
 
@@ -314,6 +384,14 @@ impl Game for BreakoutGame {
                     GameAction::Continue
                 }
                 KeyCode::Char('q') => GameAction::Quit,
+                KeyCode::Char('m') => {
+                    self.audio.toggle_music();
+                    GameAction::Continue
+                }
+                KeyCode::Char('n') => {
+                    self.audio.toggle_enabled();
+                    GameAction::Continue
+                }
                 _ => GameAction::Continue,
             },
             GameState::Paused => match key.code {
@@ -326,6 +404,14 @@ impl Game for BreakoutGame {
                     GameAction::Continue
                 }
                 KeyCode::Char('q') => GameAction::Quit,
+                KeyCode::Char('m') => {
+                    self.audio.toggle_music();
+                    GameAction::Continue
+                }
+                KeyCode::Char('n') => {
+                    self.audio.toggle_enabled();
+                    GameAction::Continue
+                }
                 _ => GameAction::Continue,
             },
             GameState::GameOver | GameState::Victory => match key.code {
@@ -334,6 +420,14 @@ impl Game for BreakoutGame {
                     GameAction::Continue
                 }
                 KeyCode::Char('q') => GameAction::Quit,
+                KeyCode::Char('m') => {
+                    self.audio.toggle_music();
+                    GameAction::Continue
+                }
+                KeyCode::Char('n') => {
+                    self.audio.toggle_enabled();
+                    GameAction::Continue
+                }
                 _ => GameAction::Continue,
             },
         }
@@ -341,6 +435,7 @@ impl Game for BreakoutGame {
 
     fn update(&mut self) -> GameAction {
         if self.state == GameState::Playing {
+            self.start_music_if_needed();
             self.update_ball();
         }
         GameAction::Continue
@@ -362,7 +457,7 @@ fn draw_breakout_game(frame: &mut ratatui::Frame, game: &BreakoutGame) {
     let chunks = Layout::vertical([
         Constraint::Length(4), // Header avec score et vies
         Constraint::Min(0),    // Zone de jeu
-        Constraint::Length(3), // Footer avec instructions
+        Constraint::Length(4), // Footer avec instructions
     ])
     .split(area);
 
@@ -483,53 +578,85 @@ fn draw_breakout_game(frame: &mut ratatui::Frame, game: &BreakoutGame) {
     let instructions = match game.state {
         GameState::Playing => {
             if game.ball_stuck {
-                vec![Line::from(vec![
-                    "←→".cyan().bold(),
-                    " Move  ".white(),
-                    "SPACE".green().bold(),
-                    " Launch  ".white(),
-                    "P".yellow().bold(),
-                    " Pause  ".white(),
-                    "R".green().bold(),
-                    " Restart  ".white(),
-                    "Q".red().bold(),
-                    " Quit".white(),
-                ])]
+                vec![
+                    Line::from(vec![
+                        "←→".cyan().bold(),
+                        " Move  ".white(),
+                        "SPACE".green().bold(),
+                        " Launch  ".white(),
+                        "P".yellow().bold(),
+                        " Pause  ".white(),
+                        "R".green().bold(),
+                        " Restart  ".white(),
+                        "Q".red().bold(),
+                        " Quit".white(),
+                    ]),
+                    Line::from(vec![
+                        "M".yellow().bold(),
+                        " Music  ".white(),
+                        "N".yellow().bold(),
+                        " Sound Effects".white(),
+                    ]),
+                ]
             } else {
-                vec![Line::from(vec![
-                    "←→".cyan().bold(),
-                    " Move Paddle  ".white(),
-                    "P".yellow().bold(),
-                    " Pause  ".white(),
-                    "R".green().bold(),
-                    " Restart  ".white(),
-                    "Q".red().bold(),
-                    " Quit".white(),
-                ])]
+                vec![
+                    Line::from(vec![
+                        "←→".cyan().bold(),
+                        " Move Paddle  ".white(),
+                        "P".yellow().bold(),
+                        " Pause  ".white(),
+                        "R".green().bold(),
+                        " Restart  ".white(),
+                        "Q".red().bold(),
+                        " Quit".white(),
+                    ]),
+                    Line::from(vec![
+                        "M".yellow().bold(),
+                        " Music  ".white(),
+                        "N".yellow().bold(),
+                        " Sound Effects".white(),
+                    ]),
+                ]
             }
         }
-        GameState::Paused => vec![Line::from(vec![
-            "PAUSED".yellow().bold(),
-            "  ".white(),
-            "P".green().bold(),
-            " Resume  ".white(),
-            "R".green().bold(),
-            " Restart  ".white(),
-            "Q".red().bold(),
-            " Quit".white(),
-        ])],
-        GameState::GameOver | GameState::Victory => vec![Line::from(vec![
-            if game.state == GameState::Victory {
-                "🎉 VICTORY! 🎉".green().bold()
-            } else {
-                "💥 GAME OVER 💥".red().bold()
-            },
-            "  ".white(),
-            "R".green().bold(),
-            " Restart  ".white(),
-            "Q".red().bold(),
-            " Quit".white(),
-        ])],
+        GameState::Paused => vec![
+            Line::from(vec![
+                "PAUSED".yellow().bold(),
+                "  ".white(),
+                "P".green().bold(),
+                " Resume  ".white(),
+                "R".green().bold(),
+                " Restart  ".white(),
+                "Q".red().bold(),
+                " Quit".white(),
+            ]),
+            Line::from(vec![
+                "M".yellow().bold(),
+                " Music  ".white(),
+                "N".yellow().bold(),
+                " Sound Effects".white(),
+            ]),
+        ],
+        GameState::GameOver | GameState::Victory => vec![
+            Line::from(vec![
+                if game.state == GameState::Victory {
+                    "🎉 VICTORY! 🎉".green().bold()
+                } else {
+                    "💥 GAME OVER 💥".red().bold()
+                },
+                "  ".white(),
+                "R".green().bold(),
+                " Restart  ".white(),
+                "Q".red().bold(),
+                " Quit".white(),
+            ]),
+            Line::from(vec![
+                "M".yellow().bold(),
+                " Music  ".white(),
+                "N".yellow().bold(),
+                " Sound Effects".white(),
+            ]),
+        ],
     };
 
     let footer = Paragraph::new(instructions)

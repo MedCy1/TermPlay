@@ -3,6 +3,7 @@ pub mod snake;
 pub mod pong;
 pub mod _2048;
 pub mod minesweeper;
+pub mod breakout;
 
 use rodio::{source::{Source, SineWave}, Sink};
 use std::time::Duration;
