@@ -16,6 +16,7 @@ pub enum MenuState {
     Games,
     MusicPlayer,
     Settings,
+    AudioSettings,
     About,
 }
 
@@ -173,12 +174,18 @@ impl MainMenu {
                 if self.current_menu == MenuState::MusicPlayer {
                     self.previous_variant();
                     self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
+                } else if self.current_menu == MenuState::AudioSettings {
+                    self.decrease_audio_setting();
+                    self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
                 }
                 GameAction::Continue
             }
             KeyCode::Right => {
                 if self.current_menu == MenuState::MusicPlayer {
                     self.next_variant();
+                    self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
+                } else if self.current_menu == MenuState::AudioSettings {
+                    self.increase_audio_setting();
                     self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
                 }
                 GameAction::Continue
@@ -211,6 +218,7 @@ impl MainMenu {
             MenuState::Games => self.games_list.len(),
             MenuState::MusicPlayer => self.music_tracks.len(),
             MenuState::Settings => 3,
+            MenuState::AudioSettings => 5, // 5 paramètres audio
             MenuState::About => 1,
         };
 
@@ -228,6 +236,7 @@ impl MainMenu {
             MenuState::Games => self.games_list.len(),
             MenuState::MusicPlayer => self.music_tracks.len(),
             MenuState::Settings => 3,
+            MenuState::AudioSettings => 5, // 5 paramètres audio
             MenuState::About => 1,
         };
 
@@ -271,7 +280,20 @@ impl MainMenu {
                 self.play_selected_music();
                 GameAction::Continue
             }
-            MenuState::Settings | MenuState::About => {
+            MenuState::Settings => {
+                match self.selected_index {
+                    0 => { // Audio Settings
+                        self.current_menu = MenuState::AudioSettings;
+                        self.selected_index = 0;
+                        self.list_state.select(Some(0));
+                    }
+                    _ => {
+                        self.go_back();
+                    }
+                }
+                GameAction::Continue
+            }
+            MenuState::AudioSettings | MenuState::About => {
                 self.go_back();
                 GameAction::Continue
             }
@@ -303,6 +325,60 @@ impl MainMenu {
                     *current - 1
                 };
             }
+        }
+    }
+    
+    fn increase_audio_setting(&mut self) {
+        match self.selected_index {
+            0 => { // Master volume
+                let current = self.audio.get_master_volume();
+                let new_volume = (current + 0.1).min(1.0);
+                self.audio.set_master_volume(new_volume);
+            }
+            1 => { // Effects volume
+                let current = self.audio.get_volume();
+                let new_volume = (current + 0.1).min(1.0);
+                self.audio.set_volume(new_volume);
+            }
+            2 => { // Music volume
+                let current = self.audio.get_music_volume();
+                let new_volume = (current + 0.1).min(1.0);
+                self.audio.set_music_volume(new_volume);
+            }
+            3 => { // Audio enabled - toggle on
+                self.audio.set_enabled(true);
+            }
+            4 => { // Music enabled - toggle on
+                self.audio.set_music_enabled(true);
+            }
+            _ => {}
+        }
+    }
+    
+    fn decrease_audio_setting(&mut self) {
+        match self.selected_index {
+            0 => { // Master volume
+                let current = self.audio.get_master_volume();
+                let new_volume = (current - 0.1).max(0.0);
+                self.audio.set_master_volume(new_volume);
+            }
+            1 => { // Effects volume
+                let current = self.audio.get_volume();
+                let new_volume = (current - 0.1).max(0.0);
+                self.audio.set_volume(new_volume);
+            }
+            2 => { // Music volume
+                let current = self.audio.get_music_volume();
+                let new_volume = (current - 0.1).max(0.0);
+                self.audio.set_music_volume(new_volume);
+            }
+            3 => { // Audio enabled - toggle off
+                self.audio.set_enabled(false);
+            }
+            4 => { // Music enabled - toggle off
+                self.audio.set_music_enabled(false);
+            }
+            _ => {}
         }
     }
     
@@ -428,6 +504,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
         MenuState::Games => "GAMES",
         MenuState::MusicPlayer => "MUSIC PLAYER",
         MenuState::Settings => "SETTINGS",
+        MenuState::AudioSettings => "AUDIO SETTINGS",
         MenuState::About => "ABOUT",
     };
 
@@ -436,6 +513,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
         MenuState::Games => "Choose your adventure",
         MenuState::MusicPlayer => "Listen to game soundtracks",
         MenuState::Settings => "Configure your experience",
+        MenuState::AudioSettings => "Adjust audio and music settings",
         MenuState::About => "Information about TermPlay",
     };
 
@@ -463,7 +541,8 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
         MenuState::Main => draw_main_options(frame, chunks[1], app),
         MenuState::Games => draw_games_menu(frame, chunks[1], app),
         MenuState::MusicPlayer => draw_music_player(frame, chunks[1], app),
-        MenuState::Settings => draw_settings_menu(frame, chunks[1]),
+        MenuState::Settings => draw_settings_menu(frame, chunks[1], app),
+        MenuState::AudioSettings => draw_audio_settings_menu(frame, chunks[1], app),
         MenuState::About => draw_about_menu(frame, chunks[1]),
     }
 
@@ -471,6 +550,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
     let controls = match app.current_menu {
         MenuState::Main => "Arrow Keys Move • Enter Select • Q Quit",
         MenuState::MusicPlayer => "↑↓ Select Track • ←→ Change Variant • Space/Enter Play • S Stop • Esc/Q Back",
+        MenuState::AudioSettings => "↑↓ Select Setting • ←→ Adjust Value • Esc/Q Back",
         _ => "Arrow Keys Move • Enter Select • Esc/Q Back",
     };
 
@@ -571,27 +651,104 @@ fn draw_games_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
     frame.render_stateful_widget(list, area, &mut app.list_state);
 }
 
-fn draw_settings_menu(frame: &mut Frame, area: Rect) {
-    let settings_text = vec![
-        Line::from(""),
-        Line::from("⚙️ Settings Menu".yellow().bold()),
-        Line::from(""),
-        Line::from("🎨 Graphics Settings"),
-        Line::from("🔊 Audio Settings"),
-        Line::from("⌨️ Controls Settings"),
-        Line::from(""),
-        Line::from("(Coming soon...)".gray().italic()),
+fn draw_settings_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
+    let settings_options = vec![
+        "🔊 Audio Settings",
+        "🎨 Graphics Settings (Coming soon)",
+        "⌨️ Controls Settings (Coming soon)",
     ];
 
-    let settings = Paragraph::new(settings_text)
-        .alignment(Alignment::Center)
+    let items: Vec<ListItem> = settings_options
+        .iter()
+        .map(|option| {
+            let content = vec![Line::from(vec![
+                Span::styled("  ", Style::default()),
+                Span::styled(*option, Style::default().fg(Color::White).bold()),
+            ])];
+            ListItem::new(content)
+        })
+        .collect();
+
+    let list = List::new(items)
         .block(
             Block::bordered()
-                .title(" Settings ".yellow().bold())
+                .title(" Settings Menu ".yellow().bold())
                 .border_style(Style::new().yellow())
                 .style(Style::default().bg(Color::Rgb(10, 15, 20)))
-        );
-    frame.render_widget(settings, area);
+        )
+        .style(Style::default().fg(Color::White))
+        .highlight_style(
+            Style::default()
+                .bg(Color::Rgb(200, 150, 0))
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD)
+        )
+        .highlight_symbol("▶ ");
+
+    frame.render_stateful_widget(list, area, &mut app.list_state);
+}
+
+fn draw_audio_settings_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
+    // Créer les options de settings audio avec leurs valeurs actuelles
+    let master_volume = app.audio.get_master_volume();
+    let volume = app.audio.get_volume();
+    let music_volume = app.audio.get_music_volume();
+    let audio_enabled = app.audio.is_enabled();
+    let music_enabled = app.audio.is_music_enabled();
+    
+    // Helper pour créer une barre de volume visuelle
+    let create_volume_bar = |value: f32| -> String {
+        let filled = (value * 10.0) as usize;
+        let empty = 10 - filled;
+        format!("[{}{}] {}%", 
+            "█".repeat(filled), 
+            "░".repeat(empty), 
+            (value * 100.0) as u8
+        )
+    };
+    
+    let audio_settings = vec![
+        format!("🎚️ Master Volume     {}", create_volume_bar(master_volume)),
+        format!("🔊 Effects Volume    {}", create_volume_bar(volume)),
+        format!("🎵 Music Volume      {}", create_volume_bar(music_volume)),
+        format!("📢 Audio Enabled     [{}] {}", 
+            if audio_enabled { "✓" } else { "✗" }, 
+            if audio_enabled { "ON" } else { "OFF" }
+        ),
+        format!("🎶 Music Enabled     [{}] {}", 
+            if music_enabled { "✓" } else { "✗" }, 
+            if music_enabled { "ON" } else { "OFF" }
+        ),
+    ];
+
+    let items: Vec<ListItem> = audio_settings
+        .iter()
+        .map(|setting| {
+            let content = vec![Line::from(vec![
+                Span::styled("  ", Style::default()),
+                Span::styled(setting, Style::default().fg(Color::White).bold()),
+            ])];
+            ListItem::new(content)
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(
+            Block::bordered()
+                .title(" Audio Settings ".cyan().bold())
+                .border_style(Style::new().cyan())
+                .style(Style::default().bg(Color::Rgb(10, 15, 20)))
+        )
+        .style(Style::default().fg(Color::White))
+        .highlight_style(
+            Style::default()
+                .bg(Color::Rgb(0, 150, 200))
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD)
+        )
+        .highlight_symbol("▶ ");
+
+    frame.render_stateful_widget(list, area, &mut app.list_state);
 }
 
 fn draw_about_menu(frame: &mut Frame, area: Rect) {

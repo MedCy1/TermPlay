@@ -91,6 +91,7 @@ pub struct AudioManager {
     _stream: Option<OutputStream>,
     effects_sink: Option<Sink>,
     music_sink: Option<Sink>,
+    master_volume: Arc<Mutex<f32>>,
     volume: Arc<Mutex<f32>>,
     music_volume: Arc<Mutex<f32>>,
     enabled: Arc<Mutex<bool>>,
@@ -109,6 +110,7 @@ impl AudioManager {
                     _stream: Some(stream_handle),
                     effects_sink: Some(effects_sink),
                     music_sink: Some(music_sink),
+                    master_volume: Arc::new(Mutex::new(0.8)),
                     volume: Arc::new(Mutex::new(0.7)),
                     music_volume: Arc::new(Mutex::new(0.3)),
                     enabled: Arc::new(Mutex::new(true)),
@@ -122,6 +124,7 @@ impl AudioManager {
                     _stream: None,
                     effects_sink: None,
                     music_sink: None,
+                    master_volume: Arc::new(Mutex::new(0.8)),
                     volume: Arc::new(Mutex::new(0.7)),
                     music_volume: Arc::new(Mutex::new(0.3)),
                     enabled: Arc::new(Mutex::new(false)),
@@ -137,20 +140,23 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.effects_sink {
-            let volume = *self.volume.lock().unwrap();
+            let master_volume = *self.master_volume.lock().unwrap();
+            let effects_volume = *self.volume.lock().unwrap();
             let source = self.generate_sound(effect);
             
             if let Some(source) = source {
                 // Volume spécial pour certains effets
-                let final_volume = match effect {
+                let base_volume = match effect {
                     SoundEffect::TetrisGameOver | 
                     SoundEffect::SnakeGameOver | 
                     SoundEffect::BreakoutGameOver | 
-                    SoundEffect::Game2048GameOver => volume.max(0.4),
-                    SoundEffect::TetrisTetris => volume * 1.2, // Plus fort pour Tetris!
-                    _ => volume,
+                    SoundEffect::Game2048GameOver => effects_volume.max(0.4),
+                    SoundEffect::TetrisTetris => effects_volume * 1.2, // Plus fort pour Tetris!
+                    _ => effects_volume,
                 };
                 
+                // Appliquer le master volume
+                let final_volume = base_volume * master_volume;
                 sink.append(source.amplify(final_volume));
             }
         }
@@ -394,19 +400,15 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            TETRIS_MUSIC.play_normal(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            TETRIS_MUSIC.play_normal(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
     }
     
-    // Méthode pour vérifier si la musique est finie et la relancer
-    pub fn loop_music_if_needed(&self) {
-        if self.is_music_enabled() && self.is_music_empty() {
-            self.play_tetris_music();
-        }
-    }
     
     // Version alternative plus courte pour les niveaux rapides
     pub fn play_tetris_music_fast(&self) {
@@ -415,8 +417,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            TETRIS_MUSIC.play_fast(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            TETRIS_MUSIC.play_fast(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -429,8 +433,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            TETRIS_MUSIC.play_celebration(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            TETRIS_MUSIC.play_celebration(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -443,8 +449,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            SNAKE_MUSIC.play_normal(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            SNAKE_MUSIC.play_normal(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -457,8 +465,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            SNAKE_MUSIC.play_fast(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            SNAKE_MUSIC.play_fast(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -471,8 +481,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            PONG_MUSIC.play_normal(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            PONG_MUSIC.play_normal(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -485,8 +497,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            PONG_MUSIC.play_fast(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            PONG_MUSIC.play_fast(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -499,8 +513,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            PONG_MUSIC.play_celebration(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            PONG_MUSIC.play_celebration(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -513,8 +529,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            GAME2048_MUSIC.play_normal(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            GAME2048_MUSIC.play_normal(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -527,8 +545,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            GAME2048_MUSIC.play_fast(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            GAME2048_MUSIC.play_fast(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -541,8 +561,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            GAME2048_MUSIC.play_celebration(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            GAME2048_MUSIC.play_celebration(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -555,8 +577,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            MINESWEEPER_MUSIC.play_normal(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            MINESWEEPER_MUSIC.play_normal(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -569,8 +593,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            MINESWEEPER_MUSIC.play_fast(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            MINESWEEPER_MUSIC.play_fast(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -583,8 +609,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            MINESWEEPER_MUSIC.play_celebration(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            MINESWEEPER_MUSIC.play_celebration(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -597,8 +625,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            BREAKOUT_MUSIC.play_normal(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            BREAKOUT_MUSIC.play_normal(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -611,8 +641,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            BREAKOUT_MUSIC.play_fast(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            BREAKOUT_MUSIC.play_fast(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -625,8 +657,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            BREAKOUT_MUSIC.play_celebration(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            BREAKOUT_MUSIC.play_celebration(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -639,8 +673,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            GAMEOFLIFE_MUSIC.play_normal(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            GAMEOFLIFE_MUSIC.play_normal(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -653,8 +689,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            GAMEOFLIFE_MUSIC.play_fast(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            GAMEOFLIFE_MUSIC.play_fast(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -667,8 +705,10 @@ impl AudioManager {
         }
         
         if let Some(sink) = &self.music_sink {
-            let volume = *self.music_volume.lock().unwrap();
-            GAMEOFLIFE_MUSIC.play_celebration(sink, volume);
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            GAMEOFLIFE_MUSIC.play_celebration(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
@@ -678,6 +718,14 @@ impl AudioManager {
         if let Some(sink) = &self.music_sink {
             sink.clear();
         }
+    }
+    
+    pub fn set_master_volume(&self, volume: f32) {
+        *self.master_volume.lock().unwrap() = volume.clamp(0.0, 1.0);
+    }
+    
+    pub fn get_master_volume(&self) -> f32 {
+        *self.master_volume.lock().unwrap()
     }
     
     pub fn set_volume(&self, volume: f32) {
@@ -735,18 +783,7 @@ impl AudioManager {
         }
     }
     
-    // Alias pour la compatibilité
-    pub fn clear_queue(&self) {
-        self.clear_effects();
-    }
     
-    pub fn is_effects_empty(&self) -> bool {
-        if let Some(sink) = &self.effects_sink {
-            sink.empty()
-        } else {
-            true
-        }
-    }
     
     pub fn is_music_empty(&self) -> bool {
         if let Some(sink) = &self.music_sink {
@@ -766,6 +803,7 @@ impl Default for AudioManager {
                 _stream: None,
                 effects_sink: None,
                 music_sink: None,
+                master_volume: Arc::new(Mutex::new(0.0)),
                 volume: Arc::new(Mutex::new(0.0)),
                 music_volume: Arc::new(Mutex::new(0.0)),
                 enabled: Arc::new(Mutex::new(false)),
