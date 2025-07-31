@@ -174,7 +174,7 @@ cargo build --release --target x86_64-unknown-linux-gnu
   - [x] Snake
   - [x] Tetris
   - [x] Menu
-  - [ ] Pong
+  - [x] Pong
   - [ ] 2048
   - [ ] Minesweeper
   - [ ] Breakout
