@@ -1,4 +1,5 @@
 use crate::core::{Game, GameAction};
+use crate::audio::{AudioManager, SoundEffect};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -125,6 +126,9 @@ pub struct PongGame {
     ai_difficulty: f32, // Entre 0.0 et 1.0
     ai_update_counter: u32, // Compteur pour ralentir l'IA
     
+    // Audio
+    audio: AudioManager,
+    music_started: bool,
 }
 
 impl PongGame {
@@ -150,6 +154,9 @@ impl PongGame {
             
             ai_difficulty: 0.7, // IA modérément difficile
             ai_update_counter: 0,
+            
+            audio: AudioManager::default(),
+            music_started: false,
         }
     }
 
@@ -165,6 +172,46 @@ impl PongGame {
         self.ball.reset(self.width, self.height);
         self.player1.position.y = self.height / 2.0 - self.player1.height / 2.0;
         self.player2.position.y = self.height / 2.0 - self.player2.height / 2.0;
+    }
+    
+    fn start_music_if_needed(&mut self) {
+        if !self.music_started && self.audio.is_music_enabled() && self.state == PongState::Playing {
+            self.audio.play_pong_music();
+            self.music_started = true;
+        }
+        
+        // Relancer la musique si elle est finie
+        if self.music_started && self.audio.is_music_enabled() && self.state == PongState::Playing {
+            if self.audio.is_music_empty() {
+                // Jouer version rapide si la balle va très vite
+                let ball_speed = (self.ball.velocity.dx.powi(2) + self.ball.velocity.dy.powi(2)).sqrt();
+                if ball_speed > 1.5 {
+                    self.audio.play_pong_music_fast();
+                } else {
+                    self.audio.play_pong_music();
+                }
+            }
+        }
+    }
+    
+    fn update_ball(&mut self) {
+        // Sauvegarder l'ancienne position Y pour détecter les collisions avec les murs
+        let old_y = self.ball.position.y;
+        
+        // Mettre à jour la position
+        self.ball.position.x += self.ball.velocity.dx;
+        self.ball.position.y += self.ball.velocity.dy;
+
+        // Rebond sur les murs haut et bas
+        if self.ball.position.y <= 0.0 || self.ball.position.y >= self.height - 1.0 {
+            self.ball.velocity.dy = -self.ball.velocity.dy;
+            self.ball.position.y = self.ball.position.y.clamp(0.0, self.height - 1.0);
+            
+            // Jouer le son de collision avec le mur seulement si on vient de toucher
+            if (old_y > 0.0 && old_y < self.height - 1.0) {
+                self.audio.play_sound(SoundEffect::PongWallHit);
+            }
+        }
     }
 
     fn update_ai(&mut self) {
@@ -215,6 +262,7 @@ impl PongGame {
                 self.ball.velocity.dy += hit_pos * 0.3;
                 
                 self.ball.position.x = self.player1.position.x + 1.0;
+                self.audio.play_sound(SoundEffect::PongPaddleHit);
             }
         }
 
@@ -228,6 +276,7 @@ impl PongGame {
                 self.ball.velocity.dy += hit_pos * 0.3;
                 
                 self.ball.position.x = self.player2.position.x - 1.0;
+                self.audio.play_sound(SoundEffect::PongPaddleHit);
             }
         }
     }
@@ -236,6 +285,7 @@ impl PongGame {
         // Joueur 1 marque (balle sort à droite)
         if self.ball.position.x >= self.width {
             self.score_player1 += 1;
+            self.audio.play_sound(SoundEffect::PongScore);
             self.check_game_over();
             if self.state == PongState::Playing {
                 self.reset_positions();
@@ -245,6 +295,7 @@ impl PongGame {
         // Joueur 2 marque (balle sort à gauche)
         if self.ball.position.x <= 0.0 {
             self.score_player2 += 1;
+            self.audio.play_sound(SoundEffect::PongScore);
             self.check_game_over();
             if self.state == PongState::Playing {
                 self.reset_positions();
@@ -255,6 +306,10 @@ impl PongGame {
     fn check_game_over(&mut self) {
         if self.score_player1 >= self.max_score || self.score_player2 >= self.max_score {
             self.state = PongState::GameOver;
+            // Arrêter la musique normale et jouer la célébration
+            self.audio.stop_music();
+            self.audio.play_pong_music_celebration();
+            self.music_started = false;
         }
     }
 
@@ -335,6 +390,22 @@ impl Game for PongGame {
                     KeyCode::Char('q') => GameAction::Quit,
                     KeyCode::Esc => {
                         self.state = PongState::Menu;
+                        self.audio.stop_music();
+                        self.music_started = false;
+                        GameAction::Continue
+                    }
+                    // Contrôles audio/musique
+                    KeyCode::Char('m') => {
+                        self.audio.toggle_music();
+                        if self.audio.is_music_enabled() {
+                            self.start_music_if_needed();
+                        } else {
+                            self.music_started = false;
+                        }
+                        GameAction::Continue
+                    }
+                    KeyCode::Char('n') => {
+                        self.audio.toggle_enabled();
                         GameAction::Continue
                     }
                     _ => GameAction::Continue,
@@ -359,7 +430,10 @@ impl Game for PongGame {
 
     fn update(&mut self) -> GameAction {
         if self.state == PongState::Playing {
-            self.ball.update(self.width, self.height);
+            // Gérer la musique
+            self.start_music_if_needed();
+            
+            self.update_ball();
             self.update_ai();
             self.check_ball_collision();
             self.check_scoring();

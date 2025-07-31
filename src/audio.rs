@@ -4,7 +4,7 @@ use rodio::{
 };
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC};
+use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC};
 
 #[derive(Debug, Clone, Copy)]
 pub enum SoundEffect {
@@ -379,6 +379,48 @@ impl AudioManager {
         if let Some(sink) = &self.music_sink {
             let volume = *self.music_volume.lock().unwrap();
             SNAKE_MUSIC.play_fast(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        }
+    }
+    
+    // Jouer la musique de Pong (version normale)
+    pub fn play_pong_music(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            PONG_MUSIC.play_normal(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        }
+    }
+    
+    // Version rapide pour Pong (quand la balle va très vite)
+    pub fn play_pong_music_fast(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            PONG_MUSIC.play_fast(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        }
+    }
+    
+    // Musique de célébration pour Pong
+    pub fn play_pong_music_celebration(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            PONG_MUSIC.play_celebration(sink, volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }

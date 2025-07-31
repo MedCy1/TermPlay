@@ -1,6 +1,6 @@
 use crate::core::{GameAction, GameInfo};
 use crate::audio::AudioManager;
-use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC};
+use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
@@ -90,6 +90,10 @@ impl MainMenu {
             MusicTrack {
                 name: SNAKE_MUSIC.name().to_string(),
                 variants: vec!["Normal".to_string(), "Fast".to_string()],
+            },
+            MusicTrack {
+                name: PONG_MUSIC.name().to_string(),
+                variants: vec!["Normal".to_string(), "Fast".to_string(), "Celebration".to_string()],
             },
         ];
 
@@ -255,6 +259,9 @@ impl MainMenu {
                 }
                 "Snake Ambient" => {
                     self.audio.play_snake_music();
+                }
+                "Pong Retro Electronic" => {
+                    self.audio.play_pong_music();
                 }
                 _ => {}
             }
