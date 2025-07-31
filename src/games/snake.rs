@@ -1,4 +1,5 @@
 use crate::core::{Game, GameAction};
+use crate::audio::{AudioManager, SoundEffect};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -31,6 +32,7 @@ pub struct SnakeGame {
     game_over: bool,
     width: u16,
     height: u16,
+    audio: AudioManager,
 }
 
 impl SnakeGame {
@@ -49,9 +51,9 @@ impl SnakeGame {
             game_over: false,
             width,
             height,
+            audio: AudioManager::default(),
         }
     }
-
 
     fn generate_food(snake: &[Position], width: u16, height: u16) -> Position {
         let mut rng = rand::rng();
@@ -96,6 +98,8 @@ impl SnakeGame {
             || self.snake.contains(&new_head)
         {
             self.game_over = true;
+            // Jouer le son de game over AVANT de nettoyer la queue
+            self.audio.play_sound(SoundEffect::SnakeGameOver);
             return;
         }
 
@@ -103,13 +107,36 @@ impl SnakeGame {
 
         if new_head == self.food {
             self.score += 10;
+            self.audio.play_sound(SoundEffect::SnakeEat);
             self.food = Self::generate_food(&self.snake, self.width, self.height);
         } else {
             self.snake.pop();
         }
     }
-}
 
+    // Méthode pour mettre à jour les dimensions du jeu
+    pub fn update_dimensions(&mut self, new_width: u16, new_height: u16) {
+        if self.width != new_width || self.height != new_height {
+            self.width = new_width;
+            self.height = new_height;
+            
+            // Assurer que le serpent reste dans les limites
+            for segment in &mut self.snake {
+                if segment.x >= new_width {
+                    segment.x = new_width - 1;
+                }
+                if segment.y >= new_height {
+                    segment.y = new_height - 1;
+                }
+            }
+            
+            // Repositionner la nourriture si nécessaire
+            if self.food.x >= new_width || self.food.y >= new_height {
+                self.food = Self::generate_food(&self.snake, new_width, new_height);
+            }
+        }
+    }
+}
 
 impl Game for SnakeGame {
     fn name(&self) -> &str {
@@ -124,6 +151,8 @@ impl Game for SnakeGame {
         if self.game_over {
             match key.code {
                 KeyCode::Char('r') => {
+                    // Nettoyer l'audio avant de redémarrer
+                    self.audio.clear_queue();
                     *self = Self::new();
                     GameAction::Continue
                 }
@@ -149,6 +178,11 @@ impl Game for SnakeGame {
                     GameAction::Continue
                 }
                 KeyCode::Char('q') => GameAction::Quit,
+                // Touches pour contrôler l'audio (optionnel)
+                KeyCode::Char('m') => {
+                    self.audio.toggle_enabled();
+                    GameAction::Continue
+                }
                 _ => GameAction::Continue,
             }
         }
@@ -176,31 +210,6 @@ impl Game for SnakeGame {
         let final_speed = base_speed.saturating_sub(speed_increase).max(80);
         
         Duration::from_millis(final_speed)
-    }
-}
-
-impl SnakeGame {
-    // Méthode pour mettre à jour les dimensions du jeu
-    pub fn update_dimensions(&mut self, new_width: u16, new_height: u16) {
-        if self.width != new_width || self.height != new_height {
-            self.width = new_width;
-            self.height = new_height;
-            
-            // Assurer que le serpent reste dans les limites
-            for segment in &mut self.snake {
-                if segment.x >= new_width {
-                    segment.x = new_width - 1;
-                }
-                if segment.y >= new_height {
-                    segment.y = new_height - 1;
-                }
-            }
-            
-            // Repositionner la nourriture si nécessaire
-            if self.food.x >= new_width || self.food.y >= new_height {
-                self.food = Self::generate_food(&self.snake, new_width, new_height);
-            }
-        }
     }
 }
 
@@ -232,6 +241,7 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
     // === HEADER ===
     let current_speed = app.tick_rate().as_millis();
     let snake_length = app.snake.len();
+    let audio_status = if app.audio.is_enabled() { "🔊" } else { "🔇" };
     
     let header_text = vec![
         Line::from(vec![
@@ -246,6 +256,8 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
             format!("{}", snake_length).green().bold(),
             " | Speed: ".gray(),
             format!("{}ms", current_speed).red().bold(),
+            " | Audio: ".gray(),
+            audio_status.white(),
         ]),
     ];
     
@@ -342,6 +354,8 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
         Line::from(vec![
             "Arrow Keys".cyan().bold(),
             " Move  ".white(),
+            "M".yellow().bold(),
+            " Audio  ".white(),
             "Q".red().bold(),
             " Quit  ".white(),
             if app.game_over { "R".green().bold() } else { "".white() },

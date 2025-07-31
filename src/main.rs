@@ -3,6 +3,7 @@ mod cli;
 mod core;
 mod games;
 mod menu;
+mod audio;
 
 use app::App;
 use cli::{Cli, Commands};
