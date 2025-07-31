@@ -1,6 +1,6 @@
 use crate::core::{GameAction, GameInfo};
 use crate::audio::AudioManager;
-use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC};
+use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, game2048::GAME2048_MUSIC};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
@@ -93,6 +93,10 @@ impl MainMenu {
             },
             MusicTrack {
                 name: PONG_MUSIC.name().to_string(),
+                variants: vec!["Normal".to_string(), "Fast".to_string(), "Celebration".to_string()],
+            },
+            MusicTrack {
+                name: GAME2048_MUSIC.name().to_string(),
                 variants: vec!["Normal".to_string(), "Fast".to_string(), "Celebration".to_string()],
             },
         ];
@@ -263,6 +267,9 @@ impl MainMenu {
                 "Pong Retro Electronic" => {
                     self.audio.play_pong_music();
                 }
+                "2048 Zen Mode" => {
+                    self.audio.play_2048_music();
+                }
                 _ => {}
             }
             
@@ -421,6 +428,7 @@ fn draw_games_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
                 "snake" => "🐍",
                 "tetris" => "🧩",
                 "pong" => "🏓",
+                "2048" => "🔢",
                 _ => "🎮",
             };
 

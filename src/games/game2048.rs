@@ -1,4 +1,5 @@
 use crate::core::{Game, GameAction};
+use crate::audio::{AudioManager, SoundEffect};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -27,6 +28,10 @@ pub struct Game2048 {
     game_over: bool,
     won: bool,
     moved: bool, // Pour savoir si le dernier mouvement a changé quelque chose
+    
+    // Audio
+    audio: AudioManager,
+    music_started: bool,
 }
 
 impl Game2048 {
@@ -38,6 +43,9 @@ impl Game2048 {
             game_over: false,
             won: false,
             moved: false,
+            
+            audio: AudioManager::default(),
+            music_started: false,
         };
         
         // Ajouter deux tuiles au début
@@ -95,6 +103,30 @@ impl Game2048 {
         false
     }
     
+    fn start_music_if_needed(&mut self) {
+        if !self.music_started && self.audio.is_music_enabled() && !self.game_over {
+            // Choisir la version selon le score actuel
+            if self.score >= 10000 {
+                self.audio.play_2048_music_fast(); // Version énergique pour scores élevés
+            } else {
+                self.audio.play_2048_music(); // Version zen normale
+            }
+            self.music_started = true;
+        }
+        
+        // Relancer la musique si elle est finie
+        if self.music_started && self.audio.is_music_enabled() && !self.game_over {
+            if self.audio.is_music_empty() {
+                // Choisir la version appropriée selon le score actuel
+                if self.score >= 10000 {
+                    self.audio.play_2048_music_fast();
+                } else {
+                    self.audio.play_2048_music();
+                }
+            }
+        }
+    }
+    
     fn move_tiles(&mut self, direction: Direction) {
         self.moved = false;
         let mut new_grid = self.grid;
@@ -112,8 +144,16 @@ impl Game2048 {
                             let merged_value = line[i] * 2;
                             merged_line.push(merged_value);
                             self.score += merged_value;
+                            
+                            // Son de fusion
+                            self.audio.play_sound(SoundEffect::Game2048Merge);
+                            
                             if merged_value == 2048 && !self.won {
                                 self.won = true;
+                                // Son de victoire spécial
+                                self.audio.stop_music();
+                                self.audio.play_2048_music_celebration();
+                                self.music_started = false;
                             }
                             i += 2; // Skip both tiles
                         } else {
@@ -148,8 +188,16 @@ impl Game2048 {
                             let merged_value = line[i] * 2;
                             merged_line.push(merged_value);
                             self.score += merged_value;
+                            
+                            // Son de fusion
+                            self.audio.play_sound(SoundEffect::Game2048Merge);
+                            
                             if merged_value == 2048 && !self.won {
                                 self.won = true;
+                                // Son de victoire spécial
+                                self.audio.stop_music();
+                                self.audio.play_2048_music_celebration();
+                                self.music_started = false;
                             }
                             i += 2; // Skip both tiles
                         } else {
@@ -187,8 +235,16 @@ impl Game2048 {
                             let merged_value = line[i] * 2;
                             merged_line.push(merged_value);
                             self.score += merged_value;
+                            
+                            // Son de fusion
+                            self.audio.play_sound(SoundEffect::Game2048Merge);
+                            
                             if merged_value == 2048 && !self.won {
                                 self.won = true;
+                                // Son de victoire spécial
+                                self.audio.stop_music();
+                                self.audio.play_2048_music_celebration();
+                                self.music_started = false;
                             }
                             i += 2; // Skip both tiles
                         } else {
@@ -226,8 +282,16 @@ impl Game2048 {
                             let merged_value = line[i] * 2;
                             merged_line.push(merged_value);
                             self.score += merged_value;
+                            
+                            // Son de fusion
+                            self.audio.play_sound(SoundEffect::Game2048Merge);
+                            
                             if merged_value == 2048 && !self.won {
                                 self.won = true;
+                                // Son de victoire spécial
+                                self.audio.stop_music();
+                                self.audio.play_2048_music_celebration();
+                                self.music_started = false;
                             }
                             i += 2; // Skip both tiles
                         } else {
@@ -261,6 +325,7 @@ impl Game2048 {
             // Vérifier la fin de jeu
             if !self.can_move() {
                 self.game_over = true;
+                self.audio.play_sound(SoundEffect::Game2048GameOver);
             }
         }
         
@@ -324,24 +389,44 @@ impl Game for Game2048 {
                     GameAction::Continue
                 }
                 KeyCode::Char('q') => GameAction::Quit,
+                KeyCode::Char('m') => {
+                    self.audio.toggle_music();
+                    GameAction::Continue
+                }
+                KeyCode::Char('n') => {
+                    self.audio.toggle_enabled();
+                    GameAction::Continue
+                }
                 _ => GameAction::Continue,
             }
         } else {
             match key.code {
                 KeyCode::Up | KeyCode::Char('w') => {
                     self.move_tiles(Direction::Up);
+                    if self.moved {
+                        self.audio.play_sound(SoundEffect::Game2048Move);
+                    }
                     GameAction::Continue
                 }
                 KeyCode::Down | KeyCode::Char('s') => {
                     self.move_tiles(Direction::Down);
+                    if self.moved {
+                        self.audio.play_sound(SoundEffect::Game2048Move);
+                    }
                     GameAction::Continue
                 }
                 KeyCode::Left | KeyCode::Char('a') => {
                     self.move_tiles(Direction::Left);
+                    if self.moved {
+                        self.audio.play_sound(SoundEffect::Game2048Move);
+                    }
                     GameAction::Continue
                 }
                 KeyCode::Right | KeyCode::Char('d') => {
                     self.move_tiles(Direction::Right);
+                    if self.moved {
+                        self.audio.play_sound(SoundEffect::Game2048Move);
+                    }
                     GameAction::Continue
                 }
                 KeyCode::Char('r') => {
@@ -349,12 +434,21 @@ impl Game for Game2048 {
                     GameAction::Continue
                 }
                 KeyCode::Char('q') => GameAction::Quit,
+                KeyCode::Char('m') => {
+                    self.audio.toggle_music();
+                    GameAction::Continue
+                }
+                KeyCode::Char('n') => {
+                    self.audio.toggle_enabled();
+                    GameAction::Continue
+                }
                 _ => GameAction::Continue,
             }
         }
     }
     
     fn update(&mut self) -> GameAction {
+        self.start_music_if_needed();
         GameAction::Continue
     }
     
@@ -374,7 +468,7 @@ fn draw_2048_game(frame: &mut ratatui::Frame, game: &Game2048) {
     let chunks = Layout::vertical([
         Constraint::Length(4), // Header avec score
         Constraint::Min(0),    // Zone de jeu
-        Constraint::Length(3), // Footer avec instructions
+        Constraint::Length(4), // Footer avec instructions
     ]).split(area);
     
     // Fond sombre élégant
@@ -474,6 +568,12 @@ fn draw_2048_game(frame: &mut ratatui::Frame, game: &Game2048) {
                 "Q".red().bold(),
                 " Quit".white(),
             ]),
+            Line::from(vec![
+                "M".yellow().bold(),
+                " Music  ".white(),
+                "N".yellow().bold(),
+                " Sound Effects".white(),
+            ]),
         ]
     } else {
         vec![
@@ -486,6 +586,12 @@ fn draw_2048_game(frame: &mut ratatui::Frame, game: &Game2048) {
                 " Restart  ".white(),
                 "Q".red().bold(),
                 " Quit".white(),
+            ]),
+            Line::from(vec![
+                "M".yellow().bold(),
+                " Music  ".white(),
+                "N".yellow().bold(),
+                " Sound Effects".white(),
             ]),
         ]
     };

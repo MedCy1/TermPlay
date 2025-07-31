@@ -4,7 +4,7 @@ use rodio::{
 };
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC};
+use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, game2048::GAME2048_MUSIC};
 
 #[derive(Debug, Clone, Copy)]
 pub enum SoundEffect {
@@ -421,6 +421,48 @@ impl AudioManager {
         if let Some(sink) = &self.music_sink {
             let volume = *self.music_volume.lock().unwrap();
             PONG_MUSIC.play_celebration(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        }
+    }
+    
+    // Jouer la musique de 2048 (version normale)
+    pub fn play_2048_music(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            GAME2048_MUSIC.play_normal(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        }
+    }
+    
+    // Version énergique pour 2048 (scores élevés/combos)
+    pub fn play_2048_music_fast(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            GAME2048_MUSIC.play_fast(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        }
+    }
+    
+    // Musique de célébration pour 2048 (victoire!)
+    pub fn play_2048_music_celebration(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            GAME2048_MUSIC.play_celebration(sink, volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }
