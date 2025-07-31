@@ -1,4 +1,4 @@
-use super::{GameMusic, create_note, create_chord};
+use super::{create_chord, create_note, GameMusic};
 use rodio::Sink;
 
 /// Musique de Tetris (Korobeiniki)
@@ -8,7 +8,7 @@ impl GameMusic for TetrisMusic {
     fn name(&self) -> &str {
         "Tetris (Korobeiniki)"
     }
-    
+
     fn play_normal(&self, sink: &Sink, volume: f32) {
         // Mélodie principale de Korobeiniki
         // E B C D C B A A C E D C B C D E C A A
@@ -32,7 +32,6 @@ impl GameMusic for TetrisMusic {
             (523.0, 400), // C5
             (440.0, 400), // A4
             (440.0, 400), // A4
-            
             // Deuxième partie: D F A G F E C E D C B B C D E C A A
             (587.0, 600), // D5 (plus long)
             (698.0, 200), // F5
@@ -53,32 +52,32 @@ impl GameMusic for TetrisMusic {
             (440.0, 400), // A4
             (440.0, 400), // A4
         ];
-        
+
         // Ligne de basse simple pour accompagnement
         let bass_notes = vec![
-            (329.0, 800),  // E3
-            (220.0, 800),  // A3
-            (207.0, 800),  // Ab3
-            (329.0, 800),  // E3
-            (220.0, 800),  // A3
-            (293.0, 800),  // D3
-            (261.0, 800),  // C3
-            (329.0, 800),  // E3
+            (329.0, 800), // E3
+            (220.0, 800), // A3
+            (207.0, 800), // Ab3
+            (329.0, 800), // E3
+            (220.0, 800), // A3
+            (293.0, 800), // D3
+            (261.0, 800), // C3
+            (329.0, 800), // E3
         ];
-        
+
         // Jouer la mélodie principale
         for (freq, duration_ms) in main_melody {
             let note = create_note(freq, duration_ms, volume * 0.8);
             sink.append(note);
         }
-        
+
         // Ajouter quelques notes de basse en arrière-plan (plus doucement)
         for (freq, duration_ms) in bass_notes.iter().take(4) {
             let bass_note = create_note(*freq, *duration_ms, volume * 0.3);
             sink.append(bass_note);
         }
     }
-    
+
     fn play_fast(&self, sink: &Sink, volume: f32) {
         // Version accélérée - notes plus courtes
         let fast_melody = vec![
@@ -102,13 +101,13 @@ impl GameMusic for TetrisMusic {
             (440.0, 200), // A4
             (440.0, 200), // A4
         ];
-        
+
         for (freq, duration_ms) in fast_melody {
             let note = create_note(freq, duration_ms, volume);
             sink.append(note);
         }
     }
-    
+
     fn play_celebration(&self, sink: &Sink, volume: f32) {
         // Version avec harmonies pour célébrer un Tetris!
         let celebration_chords = vec![
@@ -117,7 +116,7 @@ impl GameMusic for TetrisMusic {
             (&[659.0, 784.0, 523.0][..], 400), // Répétition
             (&[659.0, 784.0, 523.0][..], 600), // Plus long pour la finale
         ];
-        
+
         for (frequencies, duration_ms) in celebration_chords {
             let chord = create_chord(frequencies, duration_ms, volume * 1.2);
             sink.append(chord);

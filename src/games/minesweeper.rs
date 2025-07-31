@@ -1,5 +1,5 @@
-use crate::core::{Game, GameAction};
 use crate::audio::{AudioManager, SoundEffect};
+use crate::core::{Game, GameAction};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -47,7 +47,7 @@ pub struct MinesweeperGame {
     mines_generated: bool,
     flags_used: usize,
     cells_revealed: usize,
-    
+
     // Audio
     audio: AudioManager,
     music_started: bool,
@@ -64,7 +64,7 @@ impl MinesweeperGame {
             mines_generated: false,
             flags_used: 0,
             cells_revealed: 0,
-            
+
             audio: AudioManager::default(),
             music_started: false,
         }
@@ -83,7 +83,9 @@ impl MinesweeperGame {
             let y = rng.random_range(0..GRID_HEIGHT);
 
             // Ne pas placer de mine sur le premier clic ou autour
-            if (x.abs_diff(first_click_x) <= 1 && y.abs_diff(first_click_y) <= 1) || self.grid[y][x].is_mine {
+            if (x.abs_diff(first_click_x) <= 1 && y.abs_diff(first_click_y) <= 1)
+                || self.grid[y][x].is_mine
+            {
                 continue;
             }
 
@@ -102,7 +104,7 @@ impl MinesweeperGame {
 
         self.mines_generated = true;
     }
-    
+
     fn start_music_if_needed(&mut self) {
         if !self.music_started && self.audio.is_music_enabled() && !self.game_over && !self.won {
             // Choisir la version selon le nombre de drapeaux utilisés (indicateur de progression)
@@ -114,7 +116,7 @@ impl MinesweeperGame {
             }
             self.music_started = true;
         }
-        
+
         // Relancer la musique si elle est finie
         if self.music_started && self.audio.is_music_enabled() && !self.game_over && !self.won {
             if self.audio.is_music_empty() {
@@ -156,7 +158,7 @@ impl MinesweeperGame {
     fn reveal_cell(&mut self, x: usize, y: usize) {
         self.reveal_cell_internal(x, y, true);
     }
-    
+
     fn reveal_cell_internal(&mut self, x: usize, y: usize, play_sound: bool) {
         if x >= GRID_WIDTH || y >= GRID_HEIGHT {
             return;
@@ -258,7 +260,7 @@ impl MinesweeperGame {
         self.mines_generated = false;
         self.flags_used = 0;
         self.cells_revealed = 0;
-        
+
         self.audio.stop_music();
         self.music_started = false;
     }

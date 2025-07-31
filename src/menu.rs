@@ -1,7 +1,10 @@
-use crate::core::{GameAction, GameInfo};
 use crate::audio::AudioManager;
 use crate::config::ConfigManager;
-use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC, minesweeper::MINESWEEPER_MUSIC, breakout::BREAKOUT_MUSIC, gameoflife::GAMEOFLIFE_MUSIC};
+use crate::core::{GameAction, GameInfo};
+use crate::music::{
+    breakout::BREAKOUT_MUSIC, gameoflife::GAMEOFLIFE_MUSIC, minesweeper::MINESWEEPER_MUSIC,
+    pong::PONG_MUSIC, snake::SNAKE_MUSIC, tetris::TETRIS_MUSIC, GameMusic, _2048::GAME2048_MUSIC,
+};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
@@ -92,7 +95,11 @@ impl MainMenu {
         let music_tracks = vec![
             MusicTrack {
                 name: TETRIS_MUSIC.name().to_string(),
-                variants: vec!["Normal".to_string(), "Fast".to_string(), "Celebration".to_string()],
+                variants: vec![
+                    "Normal".to_string(),
+                    "Fast".to_string(),
+                    "Celebration".to_string(),
+                ],
             },
             MusicTrack {
                 name: SNAKE_MUSIC.name().to_string(),
@@ -100,23 +107,43 @@ impl MainMenu {
             },
             MusicTrack {
                 name: PONG_MUSIC.name().to_string(),
-                variants: vec!["Normal".to_string(), "Fast".to_string(), "Celebration".to_string()],
+                variants: vec![
+                    "Normal".to_string(),
+                    "Fast".to_string(),
+                    "Celebration".to_string(),
+                ],
             },
             MusicTrack {
                 name: GAME2048_MUSIC.name().to_string(),
-                variants: vec!["Normal".to_string(), "Fast".to_string(), "Celebration".to_string()],
+                variants: vec![
+                    "Normal".to_string(),
+                    "Fast".to_string(),
+                    "Celebration".to_string(),
+                ],
             },
             MusicTrack {
                 name: MINESWEEPER_MUSIC.name().to_string(),
-                variants: vec!["Normal".to_string(), "Intense".to_string(), "Victory".to_string()],
+                variants: vec![
+                    "Normal".to_string(),
+                    "Intense".to_string(),
+                    "Victory".to_string(),
+                ],
             },
             MusicTrack {
                 name: BREAKOUT_MUSIC.name().to_string(),
-                variants: vec!["Normal".to_string(), "Intense".to_string(), "Victory".to_string()],
+                variants: vec![
+                    "Normal".to_string(),
+                    "Intense".to_string(),
+                    "Victory".to_string(),
+                ],
             },
             MusicTrack {
                 name: GAMEOFLIFE_MUSIC.name().to_string(),
-                variants: vec!["Contemplative".to_string(), "Dynamic".to_string(), "Wonder".to_string()],
+                variants: vec![
+                    "Contemplative".to_string(),
+                    "Dynamic".to_string(),
+                    "Wonder".to_string(),
+                ],
             },
         ];
 
@@ -144,7 +171,8 @@ impl MainMenu {
         match key.code {
             KeyCode::Char('q') => {
                 if self.current_menu == MenuState::Main {
-                    self.audio.play_sound(crate::audio::SoundEffect::MenuConfirm);
+                    self.audio
+                        .play_sound(crate::audio::SoundEffect::MenuConfirm);
                     GameAction::Quit
                 } else {
                     // Arrêter la musique si on quitte le music player
@@ -195,12 +223,14 @@ impl MainMenu {
                 GameAction::Continue
             }
             KeyCode::Enter => {
-                self.audio.play_sound(crate::audio::SoundEffect::MenuConfirm);
+                self.audio
+                    .play_sound(crate::audio::SoundEffect::MenuConfirm);
                 self.select_current_item()
-            },
+            }
             KeyCode::Char(' ') => {
                 if self.current_menu == MenuState::MusicPlayer {
-                    self.audio.play_sound(crate::audio::SoundEffect::MenuConfirm);
+                    self.audio
+                        .play_sound(crate::audio::SoundEffect::MenuConfirm);
                     self.play_selected_music();
                 }
                 GameAction::Continue
@@ -286,7 +316,8 @@ impl MainMenu {
             }
             MenuState::Settings => {
                 match self.selected_index {
-                    0 => { // Audio Settings
+                    0 => {
+                        // Audio Settings
                         self.current_menu = MenuState::AudioSettings;
                         self.selected_index = 0;
                         self.list_state.select(Some(0));
@@ -309,7 +340,7 @@ impl MainMenu {
         self.selected_index = 0;
         self.list_state.select(Some(0));
     }
-    
+
     fn next_variant(&mut self) {
         if let Some(track) = self.music_tracks.get(self.selected_index) {
             if !track.variants.is_empty() {
@@ -318,7 +349,7 @@ impl MainMenu {
             }
         }
     }
-    
+
     fn previous_variant(&mut self) {
         if let Some(track) = self.music_tracks.get(self.selected_index) {
             if !track.variants.is_empty() {
@@ -331,28 +362,33 @@ impl MainMenu {
             }
         }
     }
-    
+
     fn increase_audio_setting(&mut self) {
         match self.selected_index {
-            0 => { // Master volume
+            0 => {
+                // Master volume
                 let current = self.audio.get_master_volume();
                 let new_volume = (current + 0.1).min(1.0);
                 self.audio.set_master_volume(new_volume);
             }
-            1 => { // Effects volume
+            1 => {
+                // Effects volume
                 let current = self.audio.get_volume();
                 let new_volume = (current + 0.1).min(1.0);
                 self.audio.set_volume(new_volume);
             }
-            2 => { // Music volume
+            2 => {
+                // Music volume
                 let current = self.audio.get_music_volume();
                 let new_volume = (current + 0.1).min(1.0);
                 self.audio.set_music_volume(new_volume);
             }
-            3 => { // Audio enabled - toggle on
+            3 => {
+                // Audio enabled - toggle on
                 self.audio.set_enabled(true);
             }
-            4 => { // Music enabled - toggle on
+            4 => {
+                // Music enabled - toggle on
                 self.audio.set_music_enabled(true);
             }
             _ => {}
@@ -360,28 +396,33 @@ impl MainMenu {
         // Sauvegarder la configuration après modification
         self.save_audio_config();
     }
-    
+
     fn decrease_audio_setting(&mut self) {
         match self.selected_index {
-            0 => { // Master volume
+            0 => {
+                // Master volume
                 let current = self.audio.get_master_volume();
                 let new_volume = (current - 0.1).max(0.0);
                 self.audio.set_master_volume(new_volume);
             }
-            1 => { // Effects volume
+            1 => {
+                // Effects volume
                 let current = self.audio.get_volume();
                 let new_volume = (current - 0.1).max(0.0);
                 self.audio.set_volume(new_volume);
             }
-            2 => { // Music volume
+            2 => {
+                // Music volume
                 let current = self.audio.get_music_volume();
                 let new_volume = (current - 0.1).max(0.0);
                 self.audio.set_music_volume(new_volume);
             }
-            3 => { // Audio enabled - toggle off
+            3 => {
+                // Audio enabled - toggle off
                 self.audio.set_enabled(false);
             }
-            4 => { // Music enabled - toggle off
+            4 => {
+                // Music enabled - toggle off
                 self.audio.set_music_enabled(false);
             }
             _ => {}
@@ -389,20 +430,23 @@ impl MainMenu {
         // Sauvegarder la configuration après modification
         self.save_audio_config();
     }
-    
+
     fn save_audio_config(&mut self) {
         let current_audio_config = self.audio.get_current_config();
         if let Err(e) = self.config_manager.update_audio_config(|config| {
             *config = current_audio_config;
         }) {
-            eprintln!("Erreur lors de la sauvegarde de la configuration audio: {}", e);
+            eprintln!(
+                "Erreur lors de la sauvegarde de la configuration audio: {}",
+                e
+            );
         }
     }
-    
+
     fn play_selected_music(&mut self) {
         if let Some(track) = self.music_tracks.get(self.selected_index) {
             self.audio.stop_music(); // Arrêter toute musique en cours
-            
+
             // S'assurer que l'audio est activé
             if !self.audio.is_enabled() {
                 self.audio.set_enabled(true);
@@ -410,45 +454,45 @@ impl MainMenu {
             if !self.audio.is_music_enabled() {
                 self.audio.set_music_enabled(true);
             }
-            
+
             // Jouer la musique sélectionnée avec la variante choisie
             let variant_index = self.current_variant[self.selected_index];
-            
+
             match track.name.as_str() {
                 "Tetris (Korobeiniki)" => {
                     match variant_index {
-                        0 => self.audio.play_tetris_music(), // Normal
-                        1 => self.audio.play_tetris_music_fast(), // Fast
+                        0 => self.audio.play_tetris_music(),         // Normal
+                        1 => self.audio.play_tetris_music_fast(),    // Fast
                         2 => self.audio.play_tetris_music_harmony(), // Celebration
                         _ => self.audio.play_tetris_music(),
                     }
                 }
                 "Snake Ambient" => {
                     match variant_index {
-                        0 => self.audio.play_snake_music(), // Normal
+                        0 => self.audio.play_snake_music(),      // Normal
                         1 => self.audio.play_snake_music_fast(), // Fast
                         _ => self.audio.play_snake_music(),
                     }
                 }
                 "Pong Retro Electronic" => {
                     match variant_index {
-                        0 => self.audio.play_pong_music(), // Normal
-                        1 => self.audio.play_pong_music_fast(), // Fast
+                        0 => self.audio.play_pong_music(),             // Normal
+                        1 => self.audio.play_pong_music_fast(),        // Fast
                         2 => self.audio.play_pong_music_celebration(), // Celebration
                         _ => self.audio.play_pong_music(),
                     }
                 }
                 "2048 Zen Mode" => {
                     match variant_index {
-                        0 => self.audio.play_2048_music(), // Normal
-                        1 => self.audio.play_2048_music_fast(), // Fast
+                        0 => self.audio.play_2048_music(),             // Normal
+                        1 => self.audio.play_2048_music_fast(),        // Fast
                         2 => self.audio.play_2048_music_celebration(), // Celebration
                         _ => self.audio.play_2048_music(),
                     }
                 }
                 "Minesweeper Tension" => {
                     match variant_index {
-                        0 => self.audio.play_minesweeper_music(), // Normal
+                        0 => self.audio.play_minesweeper_music(),      // Normal
                         1 => self.audio.play_minesweeper_music_fast(), // Intense
                         2 => self.audio.play_minesweeper_music_celebration(), // Victory
                         _ => self.audio.play_minesweeper_music(),
@@ -456,8 +500,8 @@ impl MainMenu {
                 }
                 "Breakout Arcade" => {
                     match variant_index {
-                        0 => self.audio.play_breakout_music(), // Normal
-                        1 => self.audio.play_breakout_music_fast(), // Intense
+                        0 => self.audio.play_breakout_music(),             // Normal
+                        1 => self.audio.play_breakout_music_fast(),        // Intense
                         2 => self.audio.play_breakout_music_celebration(), // Victory
                         _ => self.audio.play_breakout_music(),
                     }
@@ -472,24 +516,25 @@ impl MainMenu {
                 }
                 _ => {}
             }
-            
+
             self.current_playing = Some(self.selected_index);
         }
     }
 
     pub fn get_selected_game(&self) -> Option<&str> {
         if self.current_menu == MenuState::Games {
-            self.games_list.get(self.selected_index).map(|g| g.name.as_str())
+            self.games_list
+                .get(self.selected_index)
+                .map(|g| g.name.as_str())
         } else {
             None
         }
     }
-    
 
     pub fn draw(&mut self, frame: &mut Frame) {
         draw_main_menu(frame, self);
     }
-    
+
     pub fn update(&mut self) {
         // Gérer la boucle de musique si on est dans le music player
         if self.current_menu == MenuState::MusicPlayer && self.current_playing.is_some() {
@@ -505,8 +550,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
     let area = frame.area();
 
     // Fond sombre élégant
-    let background = Block::new()
-        .style(Style::default().bg(Color::Rgb(15, 20, 25)));
+    let background = Block::new().style(Style::default().bg(Color::Rgb(15, 20, 25)));
     frame.render_widget(background, area);
 
     // Layout simple et propre
@@ -514,7 +558,8 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
         Constraint::Length(4), // Header
         Constraint::Min(0),    // Zone principale
         Constraint::Length(3), // Footer
-    ]).split(area);
+    ])
+    .split(area);
 
     // === HEADER ===
     let title = match app.current_menu {
@@ -550,7 +595,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
             Block::bordered()
                 .title(" Game Status ".white().bold())
                 .border_style(Style::new().cyan())
-                .style(Style::default().bg(Color::Rgb(25, 35, 45)))
+                .style(Style::default().bg(Color::Rgb(25, 35, 45))),
         );
     frame.render_widget(header, chunks[0]);
 
@@ -567,17 +612,17 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
     // === FOOTER ===
     let controls = match app.current_menu {
         MenuState::Main => "Arrow Keys Move • Enter Select • Q Quit",
-        MenuState::MusicPlayer => "↑↓ Select Track • ←→ Change Variant • Space/Enter Play • S Stop • Esc/Q Back",
+        MenuState::MusicPlayer => {
+            "↑↓ Select Track • ←→ Change Variant • Space/Enter Play • S Stop • Esc/Q Back"
+        }
         MenuState::AudioSettings => "↑↓ Select Setting • ←→ Adjust Value • Esc/Q Back",
         _ => "Arrow Keys Move • Enter Select • Esc/Q Back",
     };
 
-    let footer_text = vec![
-        Line::from(vec![
-            "Controls: ".gray(),
-            controls.white().bold(),
-        ]),
-    ];
+    let footer_text = vec![Line::from(vec![
+        "Controls: ".gray(),
+        controls.white().bold(),
+    ])];
 
     let footer = Paragraph::new(footer_text)
         .alignment(Alignment::Center)
@@ -585,7 +630,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
             Block::bordered()
                 .title(" Controls ".white().bold())
                 .border_style(Style::new().blue())
-                .style(Style::default().bg(Color::Rgb(25, 35, 45)))
+                .style(Style::default().bg(Color::Rgb(25, 35, 45))),
         );
     frame.render_widget(footer, chunks[2]);
 }
@@ -610,14 +655,14 @@ fn draw_main_options(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
             Block::bordered()
                 .title(" Main Menu ".white().bold())
                 .border_style(Style::new().green())
-                .style(Style::default().bg(Color::Rgb(10, 15, 20)))
+                .style(Style::default().bg(Color::Rgb(10, 15, 20))),
         )
         .style(Style::default().fg(Color::White))
         .highlight_style(
             Style::default()
                 .bg(Color::Rgb(0, 100, 200))
                 .fg(Color::White)
-                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▶ ");
 
@@ -641,8 +686,14 @@ fn draw_games_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
             };
 
             let content = vec![Line::from(vec![
-                Span::styled(format!("  {} ", icon), Style::default().fg(Color::Green).bold()),
-                Span::styled(game.name.to_uppercase(), Style::default().fg(Color::White).bold()),
+                Span::styled(
+                    format!("  {} ", icon),
+                    Style::default().fg(Color::Green).bold(),
+                ),
+                Span::styled(
+                    game.name.to_uppercase(),
+                    Style::default().fg(Color::White).bold(),
+                ),
                 Span::styled("  -  ", Style::default().fg(Color::Gray)),
                 Span::styled(&game.description, Style::default().fg(Color::LightBlue)),
             ])];
@@ -655,14 +706,14 @@ fn draw_games_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
             Block::bordered()
                 .title(" Available Games ".green().bold())
                 .border_style(Style::new().green())
-                .style(Style::default().bg(Color::Rgb(10, 15, 20)))
+                .style(Style::default().bg(Color::Rgb(10, 15, 20))),
         )
         .style(Style::default().fg(Color::White))
         .highlight_style(
             Style::default()
                 .bg(Color::Rgb(0, 150, 50))
                 .fg(Color::White)
-                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▶ ");
 
@@ -692,14 +743,14 @@ fn draw_settings_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
             Block::bordered()
                 .title(" Settings Menu ".yellow().bold())
                 .border_style(Style::new().yellow())
-                .style(Style::default().bg(Color::Rgb(10, 15, 20)))
+                .style(Style::default().bg(Color::Rgb(10, 15, 20))),
         )
         .style(Style::default().fg(Color::White))
         .highlight_style(
             Style::default()
                 .bg(Color::Rgb(200, 150, 0))
                 .fg(Color::White)
-                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▶ ");
 
@@ -713,28 +764,31 @@ fn draw_audio_settings_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
     let music_volume = app.audio.get_music_volume();
     let audio_enabled = app.audio.is_enabled();
     let music_enabled = app.audio.is_music_enabled();
-    
+
     // Helper pour créer une barre de volume visuelle
     let create_volume_bar = |value: f32| -> String {
         let filled = (value * 10.0) as usize;
         let empty = 10 - filled;
-        format!("[{}{}] {}%", 
-            "█".repeat(filled), 
-            "░".repeat(empty), 
+        format!(
+            "[{}{}] {}%",
+            "█".repeat(filled),
+            "░".repeat(empty),
             (value * 100.0) as u8
         )
     };
-    
+
     let audio_settings = vec![
         format!("🎚️ Master Volume     {}", create_volume_bar(master_volume)),
         format!("🔊 Effects Volume    {}", create_volume_bar(volume)),
         format!("🎵 Music Volume      {}", create_volume_bar(music_volume)),
-        format!("📢 Audio Enabled     [{}] {}", 
-            if audio_enabled { "✓" } else { "✗" }, 
+        format!(
+            "📢 Audio Enabled     [{}] {}",
+            if audio_enabled { "✓" } else { "✗" },
             if audio_enabled { "ON" } else { "OFF" }
         ),
-        format!("🎶 Music Enabled     [{}] {}", 
-            if music_enabled { "✓" } else { "✗" }, 
+        format!(
+            "🎶 Music Enabled     [{}] {}",
+            if music_enabled { "✓" } else { "✗" },
             if music_enabled { "ON" } else { "OFF" }
         ),
     ];
@@ -755,14 +809,14 @@ fn draw_audio_settings_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
             Block::bordered()
                 .title(" Audio Settings ".cyan().bold())
                 .border_style(Style::new().cyan())
-                .style(Style::default().bg(Color::Rgb(10, 15, 20)))
+                .style(Style::default().bg(Color::Rgb(10, 15, 20))),
         )
         .style(Style::default().fg(Color::White))
         .highlight_style(
             Style::default()
                 .bg(Color::Rgb(0, 150, 200))
                 .fg(Color::White)
-                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▶ ");
 
@@ -791,7 +845,7 @@ fn draw_about_menu(frame: &mut Frame, area: Rect) {
             Block::bordered()
                 .title(" About TermPlay ".cyan().bold())
                 .border_style(Style::new().cyan())
-                .style(Style::default().bg(Color::Rgb(10, 15, 20)))
+                .style(Style::default().bg(Color::Rgb(10, 15, 20))),
         );
     frame.render_widget(about, area);
 }
@@ -807,7 +861,7 @@ fn draw_music_player(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
             } else {
                 "🎵 "
             };
-            
+
             let playing_text = if app.current_playing == Some(i) {
                 " [PLAYING]".green().bold()
             } else {
@@ -825,9 +879,12 @@ fn draw_music_player(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
                 }
             }
             let variants_text = format!(" ({})", variants_display.join(", "));
-            
+
             let content = vec![Line::from(vec![
-                Span::styled(format!("  {} ", status), Style::default().fg(Color::Green).bold()),
+                Span::styled(
+                    format!("  {} ", status),
+                    Style::default().fg(Color::Green).bold(),
+                ),
                 Span::styled(&track.name, Style::default().fg(Color::White).bold()),
                 Span::styled(variants_text, Style::default().fg(Color::Gray)),
                 playing_text,
@@ -841,14 +898,14 @@ fn draw_music_player(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
             Block::bordered()
                 .title(" Available Music Tracks ".magenta().bold())
                 .border_style(Style::new().magenta())
-                .style(Style::default().bg(Color::Rgb(10, 15, 20)))
+                .style(Style::default().bg(Color::Rgb(10, 15, 20))),
         )
         .style(Style::default().fg(Color::White))
         .highlight_style(
             Style::default()
                 .bg(Color::Rgb(100, 0, 150))
                 .fg(Color::White)
-                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▶ ");
 

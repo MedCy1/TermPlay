@@ -1,5 +1,5 @@
-use crate::core::{Game, GameAction};
 use crate::audio::{AudioManager, SoundEffect};
+use crate::core::{Game, GameAction};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -40,10 +40,7 @@ impl PieceType {
                 &[false, false, false, false],
                 &[false, false, false, false],
             ],
-            PieceType::O => &[
-                &[true, true],
-                &[true, true],
-            ],
+            PieceType::O => &[&[true, true], &[true, true]],
             PieceType::T => &[
                 &[false, true, false],
                 &[true, true, true],
@@ -117,7 +114,7 @@ impl Piece {
     fn get_blocks(&self) -> Vec<Position> {
         let shape = self.get_rotated_shape();
         let mut blocks = Vec::new();
-        
+
         for (y, row) in shape.iter().enumerate() {
             for (x, &filled) in row.iter().enumerate() {
                 if filled {
@@ -134,7 +131,7 @@ impl Piece {
     fn get_rotated_shape(&self) -> Vec<Vec<bool>> {
         let original = self.piece_type.get_shape();
         let mut shape: Vec<Vec<bool>> = original.iter().map(|row| row.to_vec()).collect();
-        
+
         for _ in 0..self.rotation {
             shape = Self::rotate_shape(shape);
         }
@@ -145,7 +142,7 @@ impl Piece {
         let rows = shape.len();
         let cols = shape[0].len();
         let mut rotated = vec![vec![false; rows]; cols];
-        
+
         for i in 0..rows {
             for j in 0..cols {
                 rotated[j][rows - 1 - i] = shape[i][j];
@@ -204,7 +201,7 @@ impl TetrisGame {
     fn spawn_piece(&mut self) {
         let new_piece = Piece::new(self.next_piece);
         self.next_piece = PieceType::random();
-        
+
         if self.is_valid_position(&new_piece) {
             self.current_piece = Some(new_piece);
         } else {
@@ -216,9 +213,11 @@ impl TetrisGame {
 
     fn is_valid_position(&self, piece: &Piece) -> bool {
         for block in piece.get_blocks() {
-            if block.x < 0 || block.x >= BOARD_WIDTH as i32 || 
-               block.y >= BOARD_HEIGHT as i32 ||
-               (block.y >= 0 && self.board[block.y as usize][block.x as usize].is_some()) {
+            if block.x < 0
+                || block.x >= BOARD_WIDTH as i32
+                || block.y >= BOARD_HEIGHT as i32
+                || (block.y >= 0 && self.board[block.y as usize][block.x as usize].is_some())
+            {
                 return false;
             }
         }
@@ -234,17 +233,17 @@ impl TetrisGame {
             }
         }
         self.current_piece = None;
-        
+
         // Jouer le son de pièce posée
         self.audio.play_sound(SoundEffect::TetrisPieceDrop);
-        
+
         self.clear_lines();
         self.spawn_piece();
     }
 
     fn clear_lines(&mut self) {
         let mut lines_to_clear = Vec::new();
-        
+
         // Identifier les lignes complètes
         for y in 0..BOARD_HEIGHT {
             if self.board[y].iter().all(|cell| cell.is_some()) {
@@ -259,7 +258,7 @@ impl TetrisGame {
                 4 => {
                     self.audio.play_sound(SoundEffect::TetrisTetris); // TETRIS!
                     self.tetris_celebration = 120; // Afficher "TETRIS!" pendant 120 frames
-                    // Jouer une version spéciale de la musique pour célébrer
+                                                   // Jouer une version spéciale de la musique pour célébrer
                     if self.audio.is_music_enabled() {
                         self.audio.stop_music();
                         self.audio.play_tetris_music_harmony();
@@ -283,7 +282,7 @@ impl TetrisGame {
         if lines_count > 0 {
             self.lines_cleared += lines_count;
             self.level = (self.lines_cleared / 10) + 1;
-            
+
             // Système de score Tetris classique
             let line_score = match lines_count {
                 1 => 40,
@@ -301,7 +300,7 @@ impl TetrisGame {
             let new_piece = piece.moved(dx, dy);
             if self.is_valid_position(&new_piece) {
                 self.current_piece = Some(new_piece);
-                
+
                 // Son subtil pour le déplacement horizontal
                 if dx != 0 {
                     self.audio.play_sound(SoundEffect::TetrisMove);
@@ -335,12 +334,12 @@ impl TetrisGame {
         while self.move_piece(0, 1) {
             dropped_lines += 1;
         }
-        
+
         if dropped_lines > 0 {
             self.score += dropped_lines as u32 * 2; // Points bonus pour hard drop
             self.audio.play_sound(SoundEffect::TetrisHardDrop);
         }
-        
+
         self.place_piece();
     }
 
@@ -359,7 +358,7 @@ impl TetrisGame {
             }
             self.music_started = true;
         }
-        
+
         // Relancer la musique si elle est finie
         if self.music_started && self.audio.is_music_enabled() {
             if self.audio.is_music_empty() {
@@ -449,10 +448,10 @@ impl Game for TetrisGame {
             if self.tetris_celebration > 0 {
                 self.tetris_celebration -= 1;
             }
-            
+
             // Démarrer la musique si ce n'est pas encore fait
             self.start_music_if_needed();
-            
+
             self.drop_timer += 1;
             if self.drop_timer >= self.get_drop_interval() {
                 self.drop_piece();
@@ -473,7 +472,7 @@ impl Game for TetrisGame {
 
 fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
     let area = frame.area();
-    
+
     // Vérification de taille minimale pour éviter les erreurs de rendu
     if area.width < 30 || area.height < 15 {
         // Afficher un message d'erreur si l'écran est trop petit
@@ -482,32 +481,44 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
             Line::from("Minimum size: 30x15".yellow()),
             Line::from(format!("Current: {}x{}", area.width, area.height).gray()),
         ];
-        
+
         let error_msg = Paragraph::new(error_text)
             .alignment(ratatui::layout::Alignment::Center)
-            .block(Block::bordered().title("Error").border_style(Style::new().red()));
-            
+            .block(
+                Block::bordered()
+                    .title("Error")
+                    .border_style(Style::new().red()),
+            );
+
         frame.render_widget(error_msg, area);
         return;
     }
-    
+
     // Layout principal
     let chunks = Layout::vertical([
         Constraint::Length(4), // Header
         Constraint::Min(0),    // Zone de jeu
         Constraint::Length(4), // Footer
-    ]).split(area);
+    ])
+    .split(area);
 
     // Fond sombre
-    let background = Block::new()
-        .style(Style::default().bg(Color::Rgb(15, 20, 25)));
+    let background = Block::new().style(Style::default().bg(Color::Rgb(15, 20, 25)));
     frame.render_widget(background, area);
 
     // === HEADER ===
-    let audio_status = if game.audio.is_enabled() { "🔊" } else { "🔇" };
-    let music_status = if game.audio.is_music_enabled() { "🎵" } else { "🔇" };
+    let audio_status = if game.audio.is_enabled() {
+        "🔊"
+    } else {
+        "🔇"
+    };
+    let music_status = if game.audio.is_music_enabled() {
+        "🎵"
+    } else {
+        "🔇"
+    };
     let speed_indicator = if game.level >= 7 { "⚡" } else { "🐌" };
-    
+
     let header_text = if game.tetris_celebration > 0 {
         vec![
             Line::from(vec![
@@ -555,25 +566,28 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
             ]),
         ]
     };
-    
+
     let header = Paragraph::new(header_text)
         .alignment(ratatui::layout::Alignment::Center)
         .block(
             Block::bordered()
                 .title(" Game Status ".white().bold())
                 .border_style(Style::new().cyan())
-                .style(Style::default().bg(Color::Rgb(25, 35, 45)))
+                .style(Style::default().bg(Color::Rgb(25, 35, 45))),
         );
     frame.render_widget(header, chunks[0]);
 
     // === ZONE DE JEU ===
     let game_area = chunks[1];
-    let inner_area = game_area.inner(Margin { vertical: 1, horizontal: 2 });
-    
+    let inner_area = game_area.inner(Margin {
+        vertical: 1,
+        horizontal: 2,
+    });
+
     // Calculer les dimensions pour centrer le jeu
     let board_width = BOARD_WIDTH as u16 * 2; // 2 caractères par bloc
     let board_height = BOARD_HEIGHT as u16;
-    
+
     let game_rect = Rect {
         x: inner_area.x + (inner_area.width.saturating_sub(board_width + 20)) / 2,
         y: inner_area.y,
@@ -600,10 +614,11 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
         for x in 0..BOARD_WIDTH {
             let cell_x = board_area.x + (x as u16 * 2);
             let cell_y = board_area.y + y as u16;
-            
-            if cell_x + 1 < board_area.x + board_area.width && 
-               cell_y < board_area.y + board_area.height &&
-               y < BOARD_HEIGHT {
+
+            if cell_x + 1 < board_area.x + board_area.width
+                && cell_y < board_area.y + board_area.height
+                && y < BOARD_HEIGHT
+            {
                 let cell_area = Rect {
                     x: cell_x,
                     y: cell_y,
@@ -617,8 +632,7 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
                     ("░░", Color::Rgb(40, 40, 50))
                 };
 
-                let cell = Paragraph::new(symbol)
-                    .style(Style::default().fg(color));
+                let cell = Paragraph::new(symbol).style(Style::default().fg(color));
                 frame.render_widget(cell, cell_area);
             }
         }
@@ -627,13 +641,17 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
     // Dessiner la pièce actuelle
     if let Some(piece) = &game.current_piece {
         for block in piece.get_blocks() {
-            if block.x >= 0 && block.x < BOARD_WIDTH as i32 && 
-               block.y >= 0 && block.y < BOARD_HEIGHT as i32 {
+            if block.x >= 0
+                && block.x < BOARD_WIDTH as i32
+                && block.y >= 0
+                && block.y < BOARD_HEIGHT as i32
+            {
                 let cell_x = board_area.x + (block.x as u16 * 2);
                 let cell_y = board_area.y + block.y as u16;
-                
-                if cell_x + 1 < board_area.x + board_area.width &&
-                   cell_y < board_area.y + board_area.height {
+
+                if cell_x + 1 < board_area.x + board_area.width
+                    && cell_y < board_area.y + board_area.height
+                {
                     let cell_area = Rect {
                         x: cell_x,
                         y: cell_y,
@@ -658,17 +676,13 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
     };
 
     if info_area.width > 0 {
-        let next_text = vec![
-            Line::from("Next:".yellow().bold()),
-            Line::from(""),
-        ];
-        
-        let next_info = Paragraph::new(next_text)
-            .block(
-                Block::bordered()
-                    .title(" Next ".yellow())
-                    .border_style(Style::new().yellow())
-            );
+        let next_text = vec![Line::from("Next:".yellow().bold()), Line::from("")];
+
+        let next_info = Paragraph::new(next_text).block(
+            Block::bordered()
+                .title(" Next ".yellow())
+                .border_style(Style::new().yellow()),
+        );
         frame.render_widget(next_info, info_area);
 
         // Dessiner la prochaine pièce
@@ -678,9 +692,10 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
                 if filled {
                     let piece_x = info_area.x + 2 + (x as u16 * 2);
                     let piece_y = info_area.y + 3 + y as u16;
-                    
-                    if piece_x + 1 < info_area.x + info_area.width &&
-                       piece_y < info_area.y + info_area.height {
+
+                    if piece_x + 1 < info_area.x + info_area.width
+                        && piece_y < info_area.y + info_area.height
+                    {
                         let piece_area = Rect {
                             x: piece_x,
                             y: piece_y,
@@ -716,18 +731,22 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
             " Audio  ".white(),
             "Q".red().bold(),
             " Quit  ".white(),
-            if game.game_over { "R".green().bold() } else { "".white() },
+            if game.game_over {
+                "R".green().bold()
+            } else {
+                "".white()
+            },
             if game.game_over { " Restart" } else { "" }.white(),
         ]),
     ];
-    
+
     let footer = Paragraph::new(instructions)
         .alignment(ratatui::layout::Alignment::Center)
         .block(
             Block::bordered()
                 .title(" Controls ".white().bold())
                 .border_style(Style::new().blue())
-                .style(Style::default().bg(Color::Rgb(25, 35, 45)))
+                .style(Style::default().bg(Color::Rgb(25, 35, 45))),
         );
     frame.render_widget(footer, chunks[2]);
 
@@ -736,8 +755,16 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
         let popup_width = 50.min(area.width);
         let popup_height = 10.min(area.height);
         let popup_area = Rect {
-            x: if area.width >= popup_width { (area.width - popup_width) / 2 } else { 0 },
-            y: if area.height >= popup_height { (area.height - popup_height) / 2 } else { 0 },
+            x: if area.width >= popup_width {
+                (area.width - popup_width) / 2
+            } else {
+                0
+            },
+            y: if area.height >= popup_height {
+                (area.height - popup_height) / 2
+            } else {
+                0
+            },
             width: popup_width,
             height: popup_height,
         };
@@ -776,7 +803,7 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
                 Block::bordered()
                     .title(" Game Over ".red().bold())
                     .border_style(Style::new().red().bold())
-                    .style(Style::default().bg(Color::Black))
+                    .style(Style::default().bg(Color::Black)),
             );
         frame.render_widget(popup, popup_area);
     }

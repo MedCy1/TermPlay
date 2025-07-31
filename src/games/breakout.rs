@@ -1,5 +1,5 @@
-use crate::core::{Game, GameAction};
 use crate::audio::{AudioManager, SoundEffect};
+use crate::core::{Game, GameAction};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
@@ -128,7 +128,7 @@ pub struct BreakoutGame {
     score: u32,
     lives: u32,
     ball_stuck: bool,
-    
+
     // Audio
     audio: AudioManager,
     music_started: bool,
@@ -137,10 +137,7 @@ pub struct BreakoutGame {
 impl BreakoutGame {
     pub fn new() -> Self {
         let paddle = Paddle::new();
-        let ball = Ball::new(
-            paddle.x + PADDLE_WIDTH as f32 / 2.0,
-            paddle.y - 1.0,
-        );
+        let ball = Ball::new(paddle.x + PADDLE_WIDTH as f32 / 2.0, paddle.y - 1.0);
 
         let mut bricks = [[Brick::new(0, 0, 0); BRICK_COLS]; BRICK_ROWS];
         for row in 0..BRICK_ROWS {
@@ -159,7 +156,7 @@ impl BreakoutGame {
             score: 0,
             lives: 3,
             ball_stuck: true,
-            
+
             audio: AudioManager::default(),
             music_started: false,
         }
@@ -170,14 +167,15 @@ impl BreakoutGame {
             self.ball_stuck = false;
         }
     }
-    
+
     fn start_music_if_needed(&mut self) {
-        if !self.music_started && self.audio.is_music_enabled() && self.state == GameState::Playing {
+        if !self.music_started && self.audio.is_music_enabled() && self.state == GameState::Playing
+        {
             // Compter les briques restantes pour choisir la musique
             let remaining_bricks = self.count_remaining_bricks();
             let total_bricks = (BRICK_ROWS * BRICK_COLS) as u32;
             let completion_ratio = 1.0 - (remaining_bricks as f32 / total_bricks as f32);
-            
+
             if completion_ratio > 0.7 {
                 self.audio.play_breakout_music_fast(); // Version intense pour fin de partie
             } else {
@@ -185,14 +183,14 @@ impl BreakoutGame {
             }
             self.music_started = true;
         }
-        
+
         // Relancer la musique si elle est finie
         if self.music_started && self.audio.is_music_enabled() && self.state == GameState::Playing {
             if self.audio.is_music_empty() {
                 let remaining_bricks = self.count_remaining_bricks();
                 let total_bricks = (BRICK_ROWS * BRICK_COLS) as u32;
                 let completion_ratio = 1.0 - (remaining_bricks as f32 / total_bricks as f32);
-                
+
                 if completion_ratio > 0.7 {
                     self.audio.play_breakout_music_fast();
                 } else {
@@ -201,7 +199,7 @@ impl BreakoutGame {
             }
         }
     }
-    
+
     fn count_remaining_bricks(&self) -> u32 {
         let mut count = 0;
         for row in &self.bricks {
@@ -240,13 +238,13 @@ impl BreakoutGame {
             && self.ball.x <= self.paddle.x + PADDLE_WIDTH as f32
         {
             self.ball.y = self.paddle.y - 1.0;
-            
+
             // Ajuster la direction en fonction de la position sur la raquette
             let hit_pos = (self.ball.x - self.paddle.x) / PADDLE_WIDTH as f32;
             let angle_factor = (hit_pos - 0.5) * 2.0; // -1 à 1
             self.ball.dx = angle_factor * 1.2;
             self.ball.dy = -self.ball.dy.abs(); // Toujours vers le haut
-            
+
             // Son de collision avec la raquette
             self.audio.play_sound(SoundEffect::BreakoutPaddleHit);
         }
@@ -270,7 +268,7 @@ impl BreakoutGame {
                     brick.destroyed = true;
                     self.score += 10;
                     self.ball.bounce_y();
-                    
+
                     // Son de destruction de brique
                     self.audio.play_sound(SoundEffect::BreakoutBrickHit);
                     break;
@@ -324,10 +322,7 @@ impl BreakoutGame {
 
     fn restart(&mut self) {
         let paddle = Paddle::new();
-        let ball = Ball::new(
-            paddle.x + PADDLE_WIDTH as f32 / 2.0,
-            paddle.y - 1.0,
-        );
+        let ball = Ball::new(paddle.x + PADDLE_WIDTH as f32 / 2.0, paddle.y - 1.0);
 
         let mut bricks = [[Brick::new(0, 0, 0); BRICK_COLS]; BRICK_ROWS];
         for row in 0..BRICK_ROWS {
@@ -345,7 +340,7 @@ impl BreakoutGame {
         self.score = 0;
         self.lives = 3;
         self.ball_stuck = true;
-        
+
         self.audio.stop_music();
         self.music_started = false;
     }
@@ -516,10 +511,11 @@ fn draw_breakout_game(frame: &mut ratatui::Frame, game: &BreakoutGame) {
             if !brick.destroyed {
                 let brick_x = field_start_x + brick.x;
                 let brick_y = field_start_y + brick.y;
-                
+
                 // Vérifier les limites avant de dessiner
-                if brick_x + BRICK_WIDTH <= inner_area.x + inner_area.width 
-                    && brick_y + BRICK_HEIGHT <= inner_area.y + inner_area.height {
+                if brick_x + BRICK_WIDTH <= inner_area.x + inner_area.width
+                    && brick_y + BRICK_HEIGHT <= inner_area.y + inner_area.height
+                {
                     let brick_area = Rect {
                         x: brick_x,
                         y: brick_y,
@@ -539,9 +535,10 @@ fn draw_breakout_game(frame: &mut ratatui::Frame, game: &BreakoutGame) {
     // Dessiner la raquette
     let paddle_x = field_start_x + game.paddle.x as u16;
     let paddle_y = field_start_y + game.paddle.y as u16;
-    
-    if paddle_x + PADDLE_WIDTH <= inner_area.x + inner_area.width 
-        && paddle_y + PADDLE_HEIGHT <= inner_area.y + inner_area.height {
+
+    if paddle_x + PADDLE_WIDTH <= inner_area.x + inner_area.width
+        && paddle_y + PADDLE_HEIGHT <= inner_area.y + inner_area.height
+    {
         let paddle_area = Rect {
             x: paddle_x,
             y: paddle_y,
@@ -558,9 +555,8 @@ fn draw_breakout_game(frame: &mut ratatui::Frame, game: &BreakoutGame) {
     // Dessiner la balle
     let ball_x = field_start_x + game.ball.x as u16;
     let ball_y = field_start_y + game.ball.y as u16;
-    
-    if ball_x < inner_area.x + inner_area.width 
-        && ball_y < inner_area.y + inner_area.height {
+
+    if ball_x < inner_area.x + inner_area.width && ball_y < inner_area.y + inner_area.height {
         let ball_area = Rect {
             x: ball_x,
             y: ball_y,
@@ -568,8 +564,7 @@ fn draw_breakout_game(frame: &mut ratatui::Frame, game: &BreakoutGame) {
             height: 1,
         };
 
-        let ball_widget = Paragraph::new("●")
-            .style(Style::default().fg(Color::Yellow).bold());
+        let ball_widget = Paragraph::new("●").style(Style::default().fg(Color::Yellow).bold());
 
         frame.render_widget(ball_widget, ball_area);
     }

@@ -1,5 +1,5 @@
-use crate::core::{Game, GameAction};
 use crate::audio::{AudioManager, SoundEffect};
+use crate::core::{Game, GameAction};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -41,7 +41,10 @@ impl SnakeGame {
         // Dimensions par défaut, seront mises à jour lors du premier rendu
         let width = 40;
         let height = 20;
-        let snake = vec![Position { x: width / 2, y: height / 2 }];
+        let snake = vec![Position {
+            x: width / 2,
+            y: height / 2,
+        }];
         let food = Self::generate_food(&snake, width, height);
 
         Self {
@@ -95,10 +98,7 @@ impl SnakeGame {
             },
         };
 
-        if new_head.x >= self.width
-            || new_head.y >= self.height
-            || self.snake.contains(&new_head)
-        {
+        if new_head.x >= self.width || new_head.y >= self.height || self.snake.contains(&new_head) {
             self.game_over = true;
             // Arrêter la musique et jouer le son de game over
             self.audio.stop_music();
@@ -123,7 +123,7 @@ impl SnakeGame {
         if self.width != new_width || self.height != new_height {
             self.width = new_width;
             self.height = new_height;
-            
+
             // Assurer que le serpent reste dans les limites
             for segment in &mut self.snake {
                 if segment.x >= new_width {
@@ -133,14 +133,14 @@ impl SnakeGame {
                     segment.y = new_height - 1;
                 }
             }
-            
+
             // Repositionner la nourriture si nécessaire
             if self.food.x >= new_width || self.food.y >= new_height {
                 self.food = Self::generate_food(&self.snake, new_width, new_height);
             }
         }
     }
-    
+
     fn start_music_if_needed(&mut self) {
         if !self.music_started && self.audio.is_music_enabled() {
             // Choisir la version de la musique selon la longueur du serpent
@@ -151,7 +151,7 @@ impl SnakeGame {
             }
             self.music_started = true;
         }
-        
+
         // Relancer la musique si elle est finie
         if self.music_started && self.audio.is_music_enabled() {
             if self.audio.is_music_empty() {
@@ -230,7 +230,7 @@ impl Game for SnakeGame {
         if !self.game_over {
             // Démarrer la musique si ce n'est pas encore fait
             self.start_music_if_needed();
-            
+
             self.move_snake();
         }
         GameAction::Continue
@@ -243,47 +243,54 @@ impl Game for SnakeGame {
     fn tick_rate(&self) -> Duration {
         // Vitesse de base: 300ms
         let base_speed: u64 = 300;
-        
+
         // Réduction de 15ms par segment du serpent (sans compter la tête)
         let speed_increase = (self.snake.len().saturating_sub(1) * 15) as u64;
-        
+
         // Vitesse minimale: 80ms pour éviter que ce soit injouable
         let final_speed = base_speed.saturating_sub(speed_increase).max(80);
-        
+
         Duration::from_millis(final_speed)
     }
 }
 
 fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
     let area = frame.area();
-    
+
     // Layout principal d'abord pour connaître l'espace réel disponible
     let chunks = Layout::vertical([
         Constraint::Length(4), // Header avec score
         Constraint::Min(0),    // Zone de jeu
         Constraint::Length(3), // Footer avec instructions
-    ]).split(area);
+    ])
+    .split(area);
 
     let game_area = chunks[1];
-    let inner_area = game_area.inner(Margin { vertical: 1, horizontal: 1 });
-    
+    let inner_area = game_area.inner(Margin {
+        vertical: 1,
+        horizontal: 1,
+    });
+
     // Calculer les dimensions en cellules de 2 caractères de large (comme Tetris)
     let game_width = (inner_area.width / 2).max(10); // Division par 2 pour des cellules de 2 chars
     let game_height = inner_area.height.max(10);
-    
+
     // Mettre à jour les dimensions logiques du jeu
     app.update_dimensions(game_width, game_height);
 
     // Fond sombre élégant
-    let background = Block::new()
-        .style(Style::default().bg(Color::Rgb(15, 20, 25)));
+    let background = Block::new().style(Style::default().bg(Color::Rgb(15, 20, 25)));
     frame.render_widget(background, area);
 
     // === HEADER ===
     let current_speed = app.tick_rate().as_millis();
     let snake_length = app.snake.len();
-    let audio_status = if app.audio.is_enabled() { "🔊" } else { "🔇" };
-    
+    let audio_status = if app.audio.is_enabled() {
+        "🔊"
+    } else {
+        "🔇"
+    };
+
     let header_text = vec![
         Line::from(vec![
             "🐍 ".green().bold(),
@@ -301,14 +308,14 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
             audio_status.white(),
         ]),
     ];
-    
+
     let header = Paragraph::new(header_text)
         .alignment(ratatui::layout::Alignment::Center)
         .block(
             Block::bordered()
                 .title(" Game Status ".white().bold())
                 .border_style(Style::new().cyan())
-                .style(Style::default().bg(Color::Rgb(25, 35, 45)))
+                .style(Style::default().bg(Color::Rgb(25, 35, 45))),
         );
     frame.render_widget(header, chunks[0]);
 
@@ -320,45 +327,50 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
         .style(Style::default().bg(Color::Rgb(10, 15, 20)));
     frame.render_widget(game_block, game_area);
 
-    let inner_area = game_area.inner(Margin { vertical: 1, horizontal: 1 });
-    
+    let inner_area = game_area.inner(Margin {
+        vertical: 1,
+        horizontal: 1,
+    });
+
     // Dessiner une grille de fond subtile pour mieux voir les cellules
     let grid_width = game_width * 2; // Largeur totale en caractères
     let grid_height = game_height;
-    
+
     for y in 0..grid_height {
         for x in 0..(grid_width / 2) {
             let cell_x = inner_area.x + (x * 2);
             let cell_y = inner_area.y + y;
-            
-            if cell_x + 1 < inner_area.x + inner_area.width && cell_y < inner_area.y + inner_area.height {
+
+            if cell_x + 1 < inner_area.x + inner_area.width
+                && cell_y < inner_area.y + inner_area.height
+            {
                 let cell_area = Rect {
                     x: cell_x,
                     y: cell_y,
                     width: 2,
                     height: 1,
                 };
-                
-                let grid_cell = Paragraph::new("░░")
-                    .style(Style::default().fg(Color::Rgb(30, 35, 40)));
+
+                let grid_cell =
+                    Paragraph::new("░░").style(Style::default().fg(Color::Rgb(30, 35, 40)));
                 frame.render_widget(grid_cell, cell_area);
             }
         }
     }
-    
+
     // Dessiner le serpent avec des cellules carrées (2 caractères de large)
     for (i, segment) in app.snake.iter().enumerate() {
         if segment.x < game_width && segment.y < game_height {
             let cell_x = inner_area.x + (segment.x * 2); // 2 caractères par cellule
             let cell_y = inner_area.y + segment.y;
-            
+
             let cell_area = Rect {
                 x: cell_x,
                 y: cell_y,
                 width: 2, // Cellules de 2 caractères de large
                 height: 1,
             };
-            
+
             // Couleurs dégradées pour un effet visuel
             let (color, symbol) = if i == 0 {
                 (Color::Rgb(120, 255, 120), "██") // Tête verte claire
@@ -366,9 +378,8 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
                 let intensity = 180 - (i * 10).min(100) as u8;
                 (Color::Rgb(50, intensity, 50), "██") // Corps dégradé
             };
-            
-            let snake_cell = Paragraph::new(symbol)
-                .style(Style::default().fg(color));
+
+            let snake_cell = Paragraph::new(symbol).style(Style::default().fg(color));
             frame.render_widget(snake_cell, cell_area);
         }
     }
@@ -377,42 +388,43 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
     if app.food.x < game_width && app.food.y < game_height {
         let food_x = inner_area.x + (app.food.x * 2); // 2 caractères par cellule
         let food_y = inner_area.y + app.food.y;
-        
+
         let food_area = Rect {
             x: food_x,
             y: food_y,
             width: 2, // Cellules de 2 caractères de large
             height: 1,
         };
-        
-        let food_cell = Paragraph::new("██")
-            .style(Style::default().fg(Color::Red).bold());
+
+        let food_cell = Paragraph::new("██").style(Style::default().fg(Color::Red).bold());
         frame.render_widget(food_cell, food_area);
     }
 
     // === FOOTER ===
-    let instructions = vec![
-        Line::from(vec![
-            "Arrow Keys".cyan().bold(),
-            " Move  ".white(),
-            "M".yellow().bold(),
-            " Music  ".white(),
-            "N".blue().bold(),
-            " Audio  ".white(),
-            "Q".red().bold(),
-            " Quit  ".white(),
-            if app.game_over { "R".green().bold() } else { "".white() },
-            if app.game_over { " Restart" } else { "" }.white(),
-        ]),
-    ];
-    
+    let instructions = vec![Line::from(vec![
+        "Arrow Keys".cyan().bold(),
+        " Move  ".white(),
+        "M".yellow().bold(),
+        " Music  ".white(),
+        "N".blue().bold(),
+        " Audio  ".white(),
+        "Q".red().bold(),
+        " Quit  ".white(),
+        if app.game_over {
+            "R".green().bold()
+        } else {
+            "".white()
+        },
+        if app.game_over { " Restart" } else { "" }.white(),
+    ])];
+
     let footer = Paragraph::new(instructions)
         .alignment(ratatui::layout::Alignment::Center)
         .block(
             Block::bordered()
                 .title(" Controls ".white().bold())
                 .border_style(Style::new().blue())
-                .style(Style::default().bg(Color::Rgb(25, 35, 45)))
+                .style(Style::default().bg(Color::Rgb(25, 35, 45))),
         );
     frame.render_widget(footer, chunks[2]);
 
@@ -421,8 +433,16 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
         let popup_width = 40.min(area.width);
         let popup_height = 8.min(area.height);
         let popup_area = Rect {
-            x: if area.width >= popup_width { (area.width - popup_width) / 2 } else { 0 },
-            y: if area.height >= popup_height { (area.height - popup_height) / 2 } else { 0 },
+            x: if area.width >= popup_width {
+                (area.width - popup_width) / 2
+            } else {
+                0
+            },
+            y: if area.height >= popup_height {
+                (area.height - popup_height) / 2
+            } else {
+                0
+            },
             width: popup_width,
             height: popup_height,
         };
@@ -454,7 +474,7 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
                 Block::bordered()
                     .title(" Game Over ".red().bold())
                     .border_style(Style::new().red().bold())
-                    .style(Style::default().bg(Color::Black))
+                    .style(Style::default().bg(Color::Black)),
             );
         frame.render_widget(popup, popup_area);
     }

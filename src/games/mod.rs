@@ -1,13 +1,13 @@
 use crate::core::{Game, GameInfo};
 use std::collections::HashMap;
 
-pub mod snake;
-pub mod tetris;
-pub mod pong;
 pub mod _2048;
-pub mod minesweeper;
 pub mod breakout;
 pub mod gameoflife;
+pub mod minesweeper;
+pub mod pong;
+pub mod snake;
+pub mod tetris;
 
 pub type GameConstructor = Box<dyn Fn() -> Box<dyn Game>>;
 
@@ -30,8 +30,7 @@ impl GameRegistry {
     where
         F: Fn() -> Box<dyn Game> + 'static,
     {
-        self.games
-            .insert(name.to_string(), Box::new(constructor));
+        self.games.insert(name.to_string(), Box::new(constructor));
         self.info
             .insert(name.to_string(), GameInfo::new(name, description));
     }
@@ -70,9 +69,11 @@ impl GameRegistry {
         });
 
         let minesweeper_game = minesweeper::MinesweeperGame::new();
-        self.register(minesweeper_game.name(), minesweeper_game.description(), || {
-            Box::new(minesweeper::MinesweeperGame::new())
-        });
+        self.register(
+            minesweeper_game.name(),
+            minesweeper_game.description(),
+            || Box::new(minesweeper::MinesweeperGame::new()),
+        );
 
         let breakout_game = breakout::BreakoutGame::new();
         self.register(breakout_game.name(), breakout_game.description(), || {

@@ -41,7 +41,7 @@ impl App {
         let mut menu = MainMenu::new(self.registry.list_games())
             .map_err(|e| format!("Failed to initialize menu: {}", e))?;
         let mut last_tick = Instant::now();
-        
+
         loop {
             terminal.draw(|f| menu.draw(f))?;
 
@@ -61,8 +61,9 @@ impl App {
                                     if let Some(mut game) = self.registry.get_game(selected_game) {
                                         self.run_game_loop(&mut game, &mut terminal)?;
                                         // Recréer le menu après le jeu en préservant la configuration
-                                        menu = MainMenu::new(self.registry.list_games())
-                                            .map_err(|e| format!("Failed to recreate menu: {}", e))?;
+                                        menu = MainMenu::new(self.registry.list_games()).map_err(
+                                            |e| format!("Failed to recreate menu: {}", e),
+                                        )?;
                                     }
                                 }
                             }
@@ -93,7 +94,9 @@ impl App {
         self.registry.has_game(name)
     }
 
-    fn setup_terminal(&self) -> Result<Terminal<CrosstermBackend<Stdout>>, Box<dyn std::error::Error>> {
+    fn setup_terminal(
+        &self,
+    ) -> Result<Terminal<CrosstermBackend<Stdout>>, Box<dyn std::error::Error>> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -112,7 +115,11 @@ impl App {
         Ok(())
     }
 
-    fn run_game_loop<B: Backend>(&self, game: &mut Box<dyn Game>, terminal: &mut Terminal<B>) -> GameResult {
+    fn run_game_loop<B: Backend>(
+        &self,
+        game: &mut Box<dyn Game>,
+        terminal: &mut Terminal<B>,
+    ) -> GameResult {
         let mut last_tick = Instant::now();
 
         loop {

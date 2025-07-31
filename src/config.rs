@@ -46,24 +46,24 @@ impl ConfigManager {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let config_path = Self::get_config_path()?;
         let config = Self::load_config(&config_path)?;
-        
+
         Ok(Self {
             config_path,
             config,
         })
     }
-    
+
     fn get_config_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
         let config_dir = dirs::config_dir()
             .ok_or("Could not find config directory")?
             .join("termplay");
-        
+
         // Créer le répertoire s'il n'existe pas
         fs::create_dir_all(&config_dir)?;
-        
+
         Ok(config_dir.join("config.json"))
     }
-    
+
     fn load_config(path: &PathBuf) -> Result<GameConfig, Box<dyn std::error::Error>> {
         if path.exists() {
             let contents = fs::read_to_string(path)?;
@@ -76,21 +76,24 @@ impl ConfigManager {
             Ok(default_config)
         }
     }
-    
-    fn save_config_to_file(config: &GameConfig, path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+
+    fn save_config_to_file(
+        config: &GameConfig,
+        path: &PathBuf,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let json = serde_json::to_string_pretty(config)?;
         fs::write(path, json)?;
         Ok(())
     }
-    
+
     pub fn save_config(&self) -> Result<(), Box<dyn std::error::Error>> {
         Self::save_config_to_file(&self.config, &self.config_path)
     }
-    
+
     pub fn get_audio_config(&self) -> &AudioConfig {
         &self.config.audio
     }
-    
+
     pub fn update_audio_config<F>(&mut self, updater: F) -> Result<(), Box<dyn std::error::Error>>
     where
         F: FnOnce(&mut AudioConfig),
@@ -99,5 +102,4 @@ impl ConfigManager {
         self.save_config()?;
         Ok(())
     }
-    
 }

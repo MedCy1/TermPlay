@@ -1,15 +1,15 @@
 mod app;
+mod audio;
 mod cli;
 mod config;
 mod core;
 mod games;
 mod menu;
-mod audio;
 mod music;
 
 use app::App;
-use cli::{Cli, Commands};
 use clap::Parser;
+use cli::{Cli, Commands};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
