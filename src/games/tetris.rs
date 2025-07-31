@@ -1,4 +1,5 @@
 use crate::core::{Game, GameAction};
+use crate::audio::{AudioManager, SoundEffect};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -176,6 +177,8 @@ pub struct TetrisGame {
     level: u32,
     game_over: bool,
     drop_timer: u32,
+    audio: AudioManager,
+    music_started: bool,
 }
 
 impl TetrisGame {
@@ -189,6 +192,8 @@ impl TetrisGame {
             level: 1,
             game_over: false,
             drop_timer: 0,
+            audio: AudioManager::default(),
+            music_started: false,
         };
         game.spawn_piece();
         game
@@ -202,6 +207,8 @@ impl TetrisGame {
             self.current_piece = Some(new_piece);
         } else {
             self.game_over = true;
+            self.audio.stop_music();
+            self.audio.play_sound(SoundEffect::TetrisGameOver);
         }
     }
 
@@ -225,6 +232,10 @@ impl TetrisGame {
             }
         }
         self.current_piece = None;
+        
+        // Jouer le son de pièce posée
+        self.audio.play_sound(SoundEffect::TetrisPieceDrop);
+        
         self.clear_lines();
         self.spawn_piece();
     }
@@ -236,6 +247,15 @@ impl TetrisGame {
         for y in 0..BOARD_HEIGHT {
             if self.board[y].iter().all(|cell| cell.is_some()) {
                 lines_to_clear.push(y);
+            }
+        }
+
+        // Jouer le son approprié selon le nombre de lignes
+        if !lines_to_clear.is_empty() {
+            match lines_to_clear.len() {
+                1 | 2 | 3 => self.audio.play_sound(SoundEffect::TetrisLineClear),
+                4 => self.audio.play_sound(SoundEffect::TetrisTetris), // TETRIS!
+                _ => {}
             }
         }
 
@@ -270,6 +290,11 @@ impl TetrisGame {
             let new_piece = piece.moved(dx, dy);
             if self.is_valid_position(&new_piece) {
                 self.current_piece = Some(new_piece);
+                
+                // Son subtil pour le déplacement horizontal
+                if dx != 0 {
+                    self.audio.play_sound(SoundEffect::TetrisMove);
+                }
                 return true;
             }
         }
@@ -281,6 +306,7 @@ impl TetrisGame {
             let rotated_piece = piece.rotated();
             if self.is_valid_position(&rotated_piece) {
                 self.current_piece = Some(rotated_piece);
+                self.audio.play_sound(SoundEffect::TetrisRotate);
                 return true;
             }
         }
@@ -294,15 +320,34 @@ impl TetrisGame {
     }
 
     fn hard_drop(&mut self) {
+        let mut dropped_lines = 0;
         while self.move_piece(0, 1) {
-            self.score += 2; // Points bonus pour hard drop
+            dropped_lines += 1;
         }
+        
+        if dropped_lines > 0 {
+            self.score += dropped_lines as u32 * 2; // Points bonus pour hard drop
+            self.audio.play_sound(SoundEffect::TetrisHardDrop);
+        }
+        
         self.place_piece();
     }
 
     fn get_drop_interval(&self) -> u32 {
         // Vitesse progressive basée sur le niveau
         std::cmp::max(1, 21 - self.level)
+    }
+
+    fn start_music_if_needed(&mut self) {
+        if !self.music_started && self.audio.is_music_enabled() {
+            self.audio.play_tetris_music();
+            self.music_started = true;
+        }
+        
+        // Relancer la musique si elle est finie
+        if self.music_started && self.audio.is_music_enabled() {
+            self.audio.loop_music_if_needed();
+        }
     }
 }
 
@@ -353,6 +398,22 @@ impl Game for TetrisGame {
                     self.hard_drop();
                     GameAction::Continue
                 }
+                KeyCode::Char('m') => {
+                    // Toggle audio
+                    self.audio.toggle_enabled();
+                    GameAction::Continue
+                }
+                KeyCode::Char('n') => {
+                    // Toggle music
+                    self.audio.toggle_music();
+                    if self.audio.is_music_enabled() {
+                        self.audio.play_tetris_music();
+                        self.music_started = true;
+                    } else {
+                        self.music_started = false;
+                    }
+                    GameAction::Continue
+                }
                 KeyCode::Char('q') => GameAction::Quit,
                 _ => GameAction::Continue,
             }
@@ -361,6 +422,9 @@ impl Game for TetrisGame {
 
     fn update(&mut self) -> GameAction {
         if !self.game_over {
+            // Démarrer la musique si ce n'est pas encore fait
+            self.start_music_if_needed();
+            
             self.drop_timer += 1;
             if self.drop_timer >= self.get_drop_interval() {
                 self.drop_piece();
@@ -395,6 +459,9 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
     frame.render_widget(background, area);
 
     // === HEADER ===
+    let audio_status = if game.audio.is_enabled() { "🔊" } else { "🔇" };
+    let music_status = if game.audio.is_music_enabled() { "🎵" } else { "🔇" };
+    
     let header_text = vec![
         Line::from(vec![
             "🧩 ".blue().bold(),
@@ -408,6 +475,10 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
             format!("{}", game.lines_cleared).green().bold(),
             " | Level: ".gray(),
             format!("{}", game.level).red().bold(),
+            " | Audio: ".gray(),
+            audio_status.white(),
+            " | Music: ".gray(),
+            music_status.white(),
         ]),
     ];
     
@@ -559,9 +630,17 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
             "↑".yellow().bold(),
             " Rotate  ".white(),
             "Space".magenta().bold(),
-            " Hard Drop  ".white(),
+            " Hard Drop".white(),
+        ]),
+        Line::from(vec![
+            "M".blue().bold(),
+            " Audio  ".white(),
+            "N".blue().bold(),
+            " Music  ".white(),
             "Q".red().bold(),
-            " Quit".white(),
+            " Quit  ".white(),
+            if game.game_over { "R".green().bold() } else { "".white() },
+            if game.game_over { " Restart" } else { "" }.white(),
         ]),
     ];
     

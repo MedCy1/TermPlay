@@ -15,6 +15,10 @@ pub enum SoundEffect {
     TetrisLineClear,
     TetrisPieceDrop,
     TetrisGameOver,
+    TetrisRotate,
+    TetrisMove,
+    TetrisHardDrop,
+    TetrisTetris, // 4 lignes d'un coup
     
     // Pong
     PongPaddleHit,
@@ -40,25 +44,63 @@ pub enum SoundEffect {
     MenuConfirm,
 }
 
+// Notes musicales en Hz (pour référence future)
+#[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
+pub enum Note {
+    C4 = 261,
+    Cs4 = 277,
+    D4 = 293,
+    Ds4 = 311,
+    E4 = 329,
+    F4 = 349,
+    Fs4 = 370,
+    G4 = 392,
+    Gs4 = 415,
+    A4 = 440,
+    As4 = 466,
+    B4 = 493,
+    C5 = 523,
+    Cs5 = 554,
+    D5 = 587,
+    Ds5 = 622,
+    E5 = 659,
+    F5 = 698,
+    Fs5 = 740,
+    G5 = 784,
+    Gs5 = 831,
+    A5 = 880,
+    As5 = 932,
+    B5 = 987,
+    Rest = 0,
+}
+
 pub struct AudioManager {
     _stream: Option<OutputStream>,
-    sink: Option<Sink>,
+    effects_sink: Option<Sink>,
+    music_sink: Option<Sink>,
     volume: Arc<Mutex<f32>>,
+    music_volume: Arc<Mutex<f32>>,
     enabled: Arc<Mutex<bool>>,
+    music_enabled: Arc<Mutex<bool>>,
 }
 
 impl AudioManager {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         match OutputStreamBuilder::open_default_stream() {
             Ok(stream_handle) => {
-                // Dans Rodio 0.21, on connecte directement le Sink au mixer du stream
-                let sink = Sink::connect_new(&stream_handle.mixer());
+                // Créer deux sinks : un pour les effets, un pour la musique
+                let effects_sink = Sink::connect_new(&stream_handle.mixer());
+                let music_sink = Sink::connect_new(&stream_handle.mixer());
                 
                 Ok(Self {
                     _stream: Some(stream_handle),
-                    sink: Some(sink),
-                    volume: Arc::new(Mutex::new(0.5)),
+                    effects_sink: Some(effects_sink),
+                    music_sink: Some(music_sink),
+                    volume: Arc::new(Mutex::new(0.7)),
+                    music_volume: Arc::new(Mutex::new(0.3)),
                     enabled: Arc::new(Mutex::new(true)),
+                    music_enabled: Arc::new(Mutex::new(true)),
                 })
             }
             Err(e) => {
@@ -66,9 +108,12 @@ impl AudioManager {
                 // Fallback en cas d'échec d'initialisation audio
                 Ok(Self {
                     _stream: None,
-                    sink: None,
-                    volume: Arc::new(Mutex::new(0.5)),
+                    effects_sink: None,
+                    music_sink: None,
+                    volume: Arc::new(Mutex::new(0.7)),
+                    music_volume: Arc::new(Mutex::new(0.3)),
                     enabled: Arc::new(Mutex::new(false)),
+                    music_enabled: Arc::new(Mutex::new(false)),
                 })
             }
         }
@@ -79,24 +124,22 @@ impl AudioManager {
             return;
         }
         
-        if let Some(sink) = &self.sink {
+        if let Some(sink) = &self.effects_sink {
             let volume = *self.volume.lock().unwrap();
             let source = self.generate_sound(effect);
             
             if let Some(source) = source {
-                // Pour les sons importants comme Game Over, on s'assure qu'ils soient audibles
+                // Volume spécial pour certains effets
                 let final_volume = match effect {
-                    SoundEffect::SnakeGameOver | 
                     SoundEffect::TetrisGameOver | 
+                    SoundEffect::SnakeGameOver | 
                     SoundEffect::BreakoutGameOver | 
-                    SoundEffect::Game2048GameOver => volume.max(0.3), // Volume minimum pour game over
+                    SoundEffect::Game2048GameOver => volume.max(0.4),
+                    SoundEffect::TetrisTetris => volume * 1.2, // Plus fort pour Tetris!
                     _ => volume,
                 };
                 
                 sink.append(source.amplify(final_volume));
-                
-                // Debug: uncomment pour vérifier que la méthode est appelée
-                // eprintln!("Playing sound: {:?} with volume: {}", effect, final_volume);
             }
         }
     }
@@ -119,21 +162,57 @@ impl AudioManager {
             
             // Tetris sounds
             SoundEffect::TetrisLineClear => {
+                // Son harmonieux pour ligne complétée
                 Some(Box::new(
-                    SineWave::new(1000.0)
-                        .take_duration(Duration::from_millis(200))
+                    SineWave::new(659.0) // E5
+                        .mix(SineWave::new(523.0)) // C5
+                        .take_duration(Duration::from_millis(300))
                 ))
             }
             SoundEffect::TetrisPieceDrop => {
+                // Son mat pour pièce posée
                 Some(Box::new(
-                    SquareWave::new(300.0)
+                    SquareWave::new(220.0)
+                        .take_duration(Duration::from_millis(80))
+                ))
+            }
+            SoundEffect::TetrisRotate => {
+                // Son aigu pour rotation
+                Some(Box::new(
+                    SineWave::new(880.0) // A5
                         .take_duration(Duration::from_millis(50))
                 ))
             }
-            SoundEffect::TetrisGameOver => {
+            SoundEffect::TetrisMove => {
+                // Son subtil pour déplacement
                 Some(Box::new(
-                    SquareWave::new(150.0)
+                    SineWave::new(440.0) // A4
+                        .take_duration(Duration::from_millis(30))
+                ))
+            }
+            SoundEffect::TetrisHardDrop => {
+                // Son de chute rapide
+                Some(Box::new(
+                    SquareWave::new(110.0)
+                        .fade_in(Duration::from_millis(10))
+                        .take_duration(Duration::from_millis(150))
+                ))
+            }
+            SoundEffect::TetrisTetris => {
+                // Son spécial pour 4 lignes (Tetris!)
+                Some(Box::new(
+                    SineWave::new(659.0) // E5
+                        .mix(SineWave::new(784.0)) // G5
+                        .mix(SineWave::new(523.0)) // C5
+                        .take_duration(Duration::from_millis(600))
+                ))
+            }
+            SoundEffect::TetrisGameOver => {
+                // Son simple et triste pour game over
+                Some(Box::new(
+                    SquareWave::new(220.0)
                         .take_duration(Duration::from_millis(800))
+                        .fade_out(Duration::from_millis(200))
                 ))
             }
             
@@ -227,12 +306,75 @@ impl AudioManager {
         }
     }
     
+    // Générer la mélodie de Tetris (Korobeiniki) - Version simplifiée et sûre
+    pub fn play_tetris_music(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            
+            // Mélodie Tetris simplifiée - sans pauses pour éviter les problèmes
+            let notes = vec![
+                (659.0, 500), // E5
+                (493.0, 250), // B4
+                (523.0, 250), // C5
+                (587.0, 500), // D5
+                (523.0, 250), // C5
+                (493.0, 250), // B4
+                (440.0, 500), // A4
+                (523.0, 250), // C5
+                (659.0, 500), // E5
+                (587.0, 250), // D5
+                (523.0, 250), // C5
+                (493.0, 750), // B4
+                (523.0, 250), // C5
+                (587.0, 500), // D5
+                (659.0, 500), // E5
+                (523.0, 500), // C5
+                (440.0, 500), // A4
+                (440.0, 1000), // A4 - note finale plus longue
+            ];
+            
+            for (freq, duration_ms) in notes {
+                let note = SineWave::new(freq)
+                    .take_duration(Duration::from_millis(duration_ms))
+                    .fade_in(Duration::from_millis(20))
+                    .fade_out(Duration::from_millis(100))
+                    .amplify(volume);
+                sink.append(note);
+            }
+        }
+    }
+    
+    // Méthode pour vérifier si la musique est finie et la relancer
+    pub fn loop_music_if_needed(&self) {
+        if self.is_music_enabled() && self.is_music_empty() {
+            self.play_tetris_music();
+        }
+    }
+    
+    pub fn stop_music(&self) {
+        if let Some(sink) = &self.music_sink {
+            sink.clear();
+        }
+    }
+    
     pub fn set_volume(&self, volume: f32) {
         *self.volume.lock().unwrap() = volume.clamp(0.0, 1.0);
     }
     
     pub fn get_volume(&self) -> f32 {
         *self.volume.lock().unwrap()
+    }
+    
+    pub fn set_music_volume(&self, volume: f32) {
+        *self.music_volume.lock().unwrap() = volume.clamp(0.0, 1.0);
+    }
+    
+    pub fn get_music_volume(&self) -> f32 {
+        *self.music_volume.lock().unwrap()
     }
     
     pub fn toggle_enabled(&self) {
@@ -248,30 +390,50 @@ impl AudioManager {
         *self.enabled.lock().unwrap()
     }
     
-    // Méthode pour nettoyer le sink et éviter l'accumulation de sons
-    pub fn clear_queue(&self) {
-        if let Some(sink) = &self.sink {
+    pub fn toggle_music(&self) {
+        let mut enabled = self.music_enabled.lock().unwrap();
+        *enabled = !*enabled;
+        if !*enabled {
+            drop(enabled);
+            self.stop_music();
+        }
+    }
+    
+    pub fn set_music_enabled(&self, enabled: bool) {
+        *self.music_enabled.lock().unwrap() = enabled;
+        if !enabled {
+            self.stop_music();
+        }
+    }
+    
+    pub fn is_music_enabled(&self) -> bool {
+        *self.music_enabled.lock().unwrap()
+    }
+    
+    pub fn clear_effects(&self) {
+        if let Some(sink) = &self.effects_sink {
             sink.clear();
         }
     }
     
-    // Méthode pour vérifier si le sink joue encore des sons
-    pub fn is_empty(&self) -> bool {
-        if let Some(sink) = &self.sink {
+    // Alias pour la compatibilité
+    pub fn clear_queue(&self) {
+        self.clear_effects();
+    }
+    
+    pub fn is_effects_empty(&self) -> bool {
+        if let Some(sink) = &self.effects_sink {
             sink.empty()
         } else {
             true
         }
     }
     
-    // Méthode de test pour vérifier que l'audio fonctionne
-    pub fn test_audio(&self) {
-        println!("Test audio - Enabled: {}, Volume: {}", self.is_enabled(), self.get_volume());
-        if self.is_enabled() {
-            self.play_sound(SoundEffect::MenuConfirm);
-            println!("Son de test joué !");
+    pub fn is_music_empty(&self) -> bool {
+        if let Some(sink) = &self.music_sink {
+            sink.empty()
         } else {
-            println!("Audio désactivé !");
+            true
         }
     }
 }
@@ -282,9 +444,12 @@ impl Default for AudioManager {
             // Fallback silencieux si l'audio n'est pas disponible
             Self {
                 _stream: None,
-                sink: None,
+                effects_sink: None,
+                music_sink: None,
                 volume: Arc::new(Mutex::new(0.0)),
+                music_volume: Arc::new(Mutex::new(0.0)),
                 enabled: Arc::new(Mutex::new(false)),
+                music_enabled: Arc::new(Mutex::new(false)),
             }
         })
     }

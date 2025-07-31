@@ -152,7 +152,7 @@ impl Game for SnakeGame {
             match key.code {
                 KeyCode::Char('r') => {
                     // Nettoyer l'audio avant de redémarrer
-                    self.audio.clear_queue();
+                    self.audio.clear_effects();
                     *self = Self::new();
                     GameAction::Continue
                 }
