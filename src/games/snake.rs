@@ -180,6 +180,10 @@ impl Game for SnakeGame {
                 KeyCode::Char('q') => GameAction::Quit,
                 // Touches pour contrôler l'audio (optionnel)
                 KeyCode::Char('m') => {
+                    self.audio.toggle_music();
+                    GameAction::Continue
+                }
+                KeyCode::Char('n') => {
                     self.audio.toggle_enabled();
                     GameAction::Continue
                 }
@@ -355,6 +359,8 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
             "Arrow Keys".cyan().bold(),
             " Move  ".white(),
             "M".yellow().bold(),
+            " Music  ".white(),
+            "N".blue().bold(),
             " Audio  ".white(),
             "Q".red().bold(),
             " Quit  ".white(),

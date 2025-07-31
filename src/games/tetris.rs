@@ -422,11 +422,6 @@ impl Game for TetrisGame {
                     GameAction::Continue
                 }
                 KeyCode::Char('m') => {
-                    // Toggle audio
-                    self.audio.toggle_enabled();
-                    GameAction::Continue
-                }
-                KeyCode::Char('n') => {
                     // Toggle music
                     self.audio.toggle_music();
                     if self.audio.is_music_enabled() {
@@ -435,6 +430,11 @@ impl Game for TetrisGame {
                     } else {
                         self.music_started = false;
                     }
+                    GameAction::Continue
+                }
+                KeyCode::Char('n') => {
+                    // Toggle sound effects
+                    self.audio.toggle_enabled();
                     GameAction::Continue
                 }
                 KeyCode::Char('q') => GameAction::Quit,
@@ -478,7 +478,7 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
     let chunks = Layout::vertical([
         Constraint::Length(4), // Header
         Constraint::Min(0),    // Zone de jeu
-        Constraint::Length(3), // Footer
+        Constraint::Length(4), // Footer
     ]).split(area);
 
     // Fond sombre
@@ -691,9 +691,9 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
         ]),
         Line::from(vec![
             "M".blue().bold(),
-            " Audio  ".white(),
-            "N".blue().bold(),
             " Music  ".white(),
+            "N".blue().bold(),
+            " Audio  ".white(),
             "Q".red().bold(),
             " Quit  ".white(),
             if game.game_over { "R".green().bold() } else { "".white() },
