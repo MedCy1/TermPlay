@@ -176,7 +176,7 @@ cargo build --release --target x86_64-unknown-linux-gnu
   - [x] Menu
   - [x] Pong
   - [x] 2048
-  - [ ] Minesweeper
+  - [x] Minesweeper
   - [ ] Breakout
   - [ ] Conway's Game of Life
 - [ ] **High Scores** - Persistent leaderboards
