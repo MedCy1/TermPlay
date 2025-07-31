@@ -179,6 +179,7 @@ pub struct TetrisGame {
     drop_timer: u32,
     audio: AudioManager,
     music_started: bool,
+    tetris_celebration: u32, // Compteur pour afficher "TETRIS!" à l'écran
 }
 
 impl TetrisGame {
@@ -194,6 +195,7 @@ impl TetrisGame {
             drop_timer: 0,
             audio: AudioManager::default(),
             music_started: false,
+            tetris_celebration: 0,
         };
         game.spawn_piece();
         game
@@ -254,7 +256,16 @@ impl TetrisGame {
         if !lines_to_clear.is_empty() {
             match lines_to_clear.len() {
                 1 | 2 | 3 => self.audio.play_sound(SoundEffect::TetrisLineClear),
-                4 => self.audio.play_sound(SoundEffect::TetrisTetris), // TETRIS!
+                4 => {
+                    self.audio.play_sound(SoundEffect::TetrisTetris); // TETRIS!
+                    self.tetris_celebration = 120; // Afficher "TETRIS!" pendant 120 frames
+                    // Jouer une version spéciale de la musique pour célébrer
+                    if self.audio.is_music_enabled() {
+                        self.audio.stop_music();
+                        self.audio.play_tetris_music_harmony();
+                        self.music_started = false; // Pour que la musique normale reprenne après
+                    }
+                }
                 _ => {}
             }
         }
@@ -340,13 +351,25 @@ impl TetrisGame {
 
     fn start_music_if_needed(&mut self) {
         if !self.music_started && self.audio.is_music_enabled() {
-            self.audio.play_tetris_music();
+            // Choisir la version de la musique selon le niveau
+            if self.level >= 7 {
+                self.audio.play_tetris_music_fast(); // Version rapide pour les niveaux élevés
+            } else {
+                self.audio.play_tetris_music(); // Version normale
+            }
             self.music_started = true;
         }
         
         // Relancer la musique si elle est finie
         if self.music_started && self.audio.is_music_enabled() {
-            self.audio.loop_music_if_needed();
+            if self.audio.is_music_empty() {
+                // Choisir la version appropriée selon le niveau actuel
+                if self.level >= 7 {
+                    self.audio.play_tetris_music_fast();
+                } else {
+                    self.audio.play_tetris_music();
+                }
+            }
         }
     }
 }
@@ -422,6 +445,11 @@ impl Game for TetrisGame {
 
     fn update(&mut self) -> GameAction {
         if !self.game_over {
+            // Décrémenter le compteur de célébration
+            if self.tetris_celebration > 0 {
+                self.tetris_celebration -= 1;
+            }
+            
             // Démarrer la musique si ce n'est pas encore fait
             self.start_music_if_needed();
             
@@ -461,26 +489,55 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
     // === HEADER ===
     let audio_status = if game.audio.is_enabled() { "🔊" } else { "🔇" };
     let music_status = if game.audio.is_music_enabled() { "🎵" } else { "🔇" };
+    let speed_indicator = if game.level >= 7 { "⚡" } else { "🐌" };
     
-    let header_text = vec![
-        Line::from(vec![
-            "🧩 ".blue().bold(),
-            "TETRIS".cyan().bold(),
-            " 🧩".blue().bold(),
-        ]),
-        Line::from(vec![
-            "Score: ".yellow(),
-            format!("{}", game.score).white().bold(),
-            " | Lines: ".gray(),
-            format!("{}", game.lines_cleared).green().bold(),
-            " | Level: ".gray(),
-            format!("{}", game.level).red().bold(),
-            " | Audio: ".gray(),
-            audio_status.white(),
-            " | Music: ".gray(),
-            music_status.white(),
-        ]),
-    ];
+    let header_text = if game.tetris_celebration > 0 {
+        vec![
+            Line::from(vec![
+                "🧩 ".blue().bold(),
+                "TETRIS".cyan().bold(),
+                " 🧩  🎉 ".blue().bold(),
+                "TETRIS!".yellow().bold(),
+                " 🎉".blue().bold(),
+            ]),
+            Line::from(vec![
+                "Score: ".yellow(),
+                format!("{}", game.score).white().bold(),
+                " | Lines: ".gray(),
+                format!("{}", game.lines_cleared).green().bold(),
+                " | Level: ".gray(),
+                format!("{}", game.level).red().bold(),
+                " ".white(),
+                speed_indicator.white(),
+                " | Audio: ".gray(),
+                audio_status.white(),
+                " | Music: ".gray(),
+                music_status.white(),
+            ]),
+        ]
+    } else {
+        vec![
+            Line::from(vec![
+                "🧩 ".blue().bold(),
+                "TETRIS".cyan().bold(),
+                " 🧩".blue().bold(),
+            ]),
+            Line::from(vec![
+                "Score: ".yellow(),
+                format!("{}", game.score).white().bold(),
+                " | Lines: ".gray(),
+                format!("{}", game.lines_cleared).green().bold(),
+                " | Level: ".gray(),
+                format!("{}", game.level).red().bold(),
+                " ".white(),
+                speed_indicator.white(),
+                " | Audio: ".gray(),
+                audio_status.white(),
+                " | Music: ".gray(),
+                music_status.white(),
+            ]),
+        ]
+    };
     
     let header = Paragraph::new(header_text)
         .alignment(ratatui::layout::Alignment::Center)

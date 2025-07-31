@@ -306,7 +306,7 @@ impl AudioManager {
         }
     }
     
-    // Générer la mélodie de Tetris (Korobeiniki) - Version simplifiée et sûre
+    // Générer la mélodie de Tetris (Korobeiniki) - Version fidèle basée sur le tutoriel piano
     pub fn play_tetris_music(&self) {
         if !*self.music_enabled.lock().unwrap() {
             return;
@@ -315,35 +315,81 @@ impl AudioManager {
         if let Some(sink) = &self.music_sink {
             let volume = *self.music_volume.lock().unwrap();
             
-            // Mélodie Tetris simplifiée - sans pauses pour éviter les problèmes
-            let notes = vec![
-                (659.0, 500), // E5
-                (493.0, 250), // B4
-                (523.0, 250), // C5
-                (587.0, 500), // D5
-                (523.0, 250), // C5
-                (493.0, 250), // B4
-                (440.0, 500), // A4
-                (523.0, 250), // C5
-                (659.0, 500), // E5
-                (587.0, 250), // D5
-                (523.0, 250), // C5
-                (493.0, 750), // B4
-                (523.0, 250), // C5
-                (587.0, 500), // D5
-                (659.0, 500), // E5
-                (523.0, 500), // C5
-                (440.0, 500), // A4
-                (440.0, 1000), // A4 - note finale plus longue
+            // Mélodie principale (main droite) - Premier segment
+            // E B C D C B A A C E D C B C D E C A A D F A G F E C E D C B B C D E C A A
+            let main_melody = vec![
+                (659.0, 400), // E
+                (493.0, 200), // B
+                (523.0, 200), // C
+                (587.0, 400), // D
+                (523.0, 200), // C
+                (493.0, 200), // B
+                (440.0, 400), // A
+                (440.0, 200), // A
+                (523.0, 200), // C
+                (659.0, 400), // E
+                (587.0, 200), // D
+                (523.0, 200), // C
+                (493.0, 600), // B (plus long)
+                (523.0, 200), // C
+                (587.0, 400), // D
+                (659.0, 400), // E
+                (523.0, 400), // C
+                (440.0, 400), // A
+                (440.0, 400), // A
+                
+                // Deuxième partie: D F A G F E C E D C B B C D E C A A
+                (587.0, 600), // D (plus long)
+                (698.0, 200), // F
+                (880.0, 400), // A
+                (784.0, 200), // G
+                (698.0, 200), // F
+                (659.0, 600), // E (plus long)
+                (523.0, 200), // C
+                (659.0, 400), // E
+                (587.0, 200), // D
+                (523.0, 200), // C
+                (493.0, 400), // B
+                (493.0, 200), // B
+                (523.0, 200), // C
+                (587.0, 400), // D
+                (659.0, 400), // E
+                (523.0, 400), // C
+                (440.0, 400), // A
+                (440.0, 400), // A
             ];
             
-            for (freq, duration_ms) in notes {
+            // Ligne de basse simple (inspiration main gauche)
+            // E E A A Ab E A D D C C E E A (simplifié)
+            let bass_notes = vec![
+                (329.0, 800), // E (octave plus bas)
+                (220.0, 800), // A (octave plus bas)
+                (207.0, 800), // Ab (octave plus bas)
+                (329.0, 800), // E
+                (220.0, 800), // A
+                (293.0, 800), // D
+                (261.0, 800), // C
+                (329.0, 800), // E
+            ];
+            
+            // Jouer la mélodie principale
+            for (freq, duration_ms) in main_melody {
                 let note = SineWave::new(freq)
                     .take_duration(Duration::from_millis(duration_ms))
-                    .fade_in(Duration::from_millis(20))
-                    .fade_out(Duration::from_millis(100))
-                    .amplify(volume);
+                    .fade_in(Duration::from_millis(10))
+                    .fade_out(Duration::from_millis(30))
+                    .amplify(volume * 0.8); // Légèrement moins fort pour la mélodie
                 sink.append(note);
+            }
+            
+            // Ajouter quelques notes de basse en arrière-plan (plus doucement)
+            for (freq, duration_ms) in bass_notes.iter().take(4) { // Seulement les 4 premières
+                let bass_note = SineWave::new(*freq)
+                    .take_duration(Duration::from_millis(*duration_ms))
+                    .fade_in(Duration::from_millis(50))
+                    .fade_out(Duration::from_millis(100))
+                    .amplify(volume * 0.3); // Beaucoup plus doux pour l'accompagnement
+                sink.append(bass_note);
             }
         }
     }
@@ -352,6 +398,78 @@ impl AudioManager {
     pub fn loop_music_if_needed(&self) {
         if self.is_music_enabled() && self.is_music_empty() {
             self.play_tetris_music();
+        }
+    }
+    
+    // Version alternative plus courte pour les niveaux rapides
+    pub fn play_tetris_music_fast(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            
+            // Version accélérée - notes plus courtes
+            let fast_melody = vec![
+                (659.0, 200), // E
+                (493.0, 100), // B
+                (523.0, 100), // C
+                (587.0, 200), // D
+                (523.0, 100), // C
+                (493.0, 100), // B
+                (440.0, 200), // A
+                (440.0, 100), // A
+                (523.0, 100), // C
+                (659.0, 200), // E
+                (587.0, 100), // D
+                (523.0, 100), // C
+                (493.0, 300), // B
+                (523.0, 100), // C
+                (587.0, 200), // D
+                (659.0, 200), // E
+                (523.0, 200), // C
+                (440.0, 200), // A
+                (440.0, 200), // A
+            ];
+            
+            for (freq, duration_ms) in fast_melody {
+                let note = SineWave::new(freq)
+                    .take_duration(Duration::from_millis(duration_ms))
+                    .fade_in(Duration::from_millis(5))
+                    .fade_out(Duration::from_millis(15))
+                    .amplify(volume);
+                sink.append(note);
+            }
+        }
+    }
+    
+    // Version avec harmonies pour les moments spéciaux (Tetris!)
+    pub fn play_tetris_music_harmony(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            
+            // Version avec accord pour célébrer un Tetris
+            let harmony_notes = vec![
+                // Accord de victoire: E + G + C
+                (659.0, 400), // E5
+                (784.0, 400), // G5 (joué en même temps conceptuellement)
+                (523.0, 400), // C5
+                (659.0, 600), // E5 finale plus longue
+            ];
+            
+            for (freq, duration_ms) in harmony_notes {
+                let note = SineWave::new(freq)
+                    .take_duration(Duration::from_millis(duration_ms))
+                    .fade_in(Duration::from_millis(20))
+                    .fade_out(Duration::from_millis(100))
+                    .amplify(volume * 1.2); // Plus fort pour célébrer
+                sink.append(note);
+            }
         }
     }
     
