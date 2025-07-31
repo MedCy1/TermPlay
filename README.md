@@ -167,9 +167,9 @@ cargo build --release --target x86_64-unknown-linux-gnu
 - [x] **2048** - Number sliding puzzle game
 - [x] **Minesweeper** - Classic mine detection game
 - [x] **Breakout** - Brick breaking arcade game
+- [x] **Conway's Game of Life** - Cellular automaton visualization
 
 ### 🚧 In Progress / Planned
-- [ ] **Conway's Game of Life** - Cellular automaton visualization
 - [ ] **Sound Effects** - Audio feedback for game events
 - [ ] **High Scores** - Persistent leaderboards
 - [ ] **Themes** - Customizable color schemes
