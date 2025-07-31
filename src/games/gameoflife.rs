@@ -1,4 +1,5 @@
 use crate::core::{Game, GameAction};
+use crate::audio::{AudioManager, SoundEffect};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -57,6 +58,10 @@ pub struct GameOfLife {
     speed: u8, // 1-5, plus élevé = plus rapide
     grid_width: usize,
     grid_height: usize,
+    
+    // Audio
+    audio: AudioManager,
+    music_started: bool,
 }
 
 impl GameOfLife {
@@ -73,6 +78,9 @@ impl GameOfLife {
             speed: 3,
             grid_width: MEDIUM_WIDTH,
             grid_height: MEDIUM_HEIGHT,
+            
+            audio: AudioManager::default(),
+            music_started: false,
         };
         
         // Commencer avec un pattern initial
@@ -81,6 +89,43 @@ impl GameOfLife {
         game.place_pattern(Pattern::Block, game.grid_width / 2 + 10, game.grid_height / 2 + 5);
         
         game
+    }
+    
+    fn start_music_if_needed(&mut self) {
+        if !self.music_started && self.audio.is_music_enabled() {
+            // Choisir la musique selon l'état et la vitesse
+            match self.state {
+                GameState::Running => {
+                    if self.speed >= 4 {
+                        self.audio.play_gameoflife_music_fast(); // Version dynamique pour vitesse élevée
+                    } else {
+                        self.audio.play_gameoflife_music(); // Version contemplative normale
+                    }
+                },
+                GameState::Editing | GameState::Paused => {
+                    self.audio.play_gameoflife_music(); // Version contemplative pour édition/pause
+                }
+            }
+            self.music_started = true;
+        }
+        
+        // Relancer la musique si elle est finie
+        if self.music_started && self.audio.is_music_enabled() {
+            if self.audio.is_music_empty() {
+                match self.state {
+                    GameState::Running => {
+                        if self.speed >= 4 {
+                            self.audio.play_gameoflife_music_fast();
+                        } else {
+                            self.audio.play_gameoflife_music();
+                        }
+                    },
+                    GameState::Editing | GameState::Paused => {
+                        self.audio.play_gameoflife_music();
+                    }
+                }
+            }
+        }
     }
     
     fn resize_grid(&mut self, width: usize, height: usize) {
@@ -175,6 +220,9 @@ impl GameOfLife {
                 self.grid[y][x] = CellState::Alive;
             }
         }
+        
+        // Son harmonieux pour placement de pattern   
+        self.audio.play_sound(SoundEffect::GameOfLifePatternPlace);
     }
     
     fn count_neighbors(&self, x: usize, y: usize) -> u8 {
@@ -227,6 +275,11 @@ impl GameOfLife {
         // Copier la nouvelle génération
         self.grid = self.next_grid;
         self.generation += 1;
+        
+        // Son subtil pour chaque step (mais seulement aux vitesses lentes pour éviter le spam)
+        if self.audio.is_enabled() && self.speed <= 3 {
+            self.audio.play_sound(SoundEffect::GameOfLifeStep);
+        }
     }
     
     fn toggle_cell(&mut self, x: usize, y: usize) {
@@ -235,6 +288,8 @@ impl GameOfLife {
                 CellState::Alive => CellState::Dead,
                 CellState::Dead => CellState::Alive,
             };
+            // Son de toggle de cellule
+            self.audio.play_sound(SoundEffect::GameOfLifeCellToggle);
         }
     }
     
@@ -346,15 +401,27 @@ impl Game for GameOfLife {
             
             // Contrôles de simulation
             KeyCode::Char('p') => {
+                let old_state = self.state;
                 self.state = match self.state {
                     GameState::Running => GameState::Paused,
                     GameState::Paused => GameState::Running,
                     GameState::Editing => GameState::Running,
                 };
+                // Son de changement d'état
+                if old_state != self.state {
+                    self.audio.play_sound(SoundEffect::GameOfLifeStateChange);
+                    // Redémarrer la musique si on change d'état
+                    self.music_started = false;
+                }
                 GameAction::Continue
             }
             KeyCode::Char('e') => {
+                let old_state = self.state;
                 self.state = GameState::Editing;
+                if old_state != self.state {
+                    self.audio.play_sound(SoundEffect::GameOfLifeStateChange);
+                    self.music_started = false;
+                }
                 GameAction::Continue
             }
             KeyCode::Char('n') => {
@@ -366,11 +433,26 @@ impl Game for GameOfLife {
             
             // Contrôles de vitesse
             KeyCode::Char('+') | KeyCode::Char('=') => {
+                let old_speed = self.speed;
                 self.change_speed(1);
+                if old_speed != self.speed {
+                    self.audio.play_sound(SoundEffect::GameOfLifeStateChange);
+                    // Redémarrer la musique si on change de vitesse en mode running
+                    if self.state == GameState::Running {
+                        self.music_started = false;
+                    }
+                }
                 GameAction::Continue
             }
             KeyCode::Char('-') => {
+                let old_speed = self.speed;
                 self.change_speed(-1);
+                if old_speed != self.speed {
+                    self.audio.play_sound(SoundEffect::GameOfLifeStateChange);
+                    if self.state == GameState::Running {
+                        self.music_started = false;
+                    }
+                }
                 GameAction::Continue
             }
             
@@ -440,12 +522,24 @@ impl Game for GameOfLife {
                 GameAction::Continue
             }
             
+            // Contrôles audio
+            KeyCode::Char('m') => {
+                self.audio.toggle_music();
+                GameAction::Continue
+            }
+            KeyCode::Char('x') => { // Utilise 'x' au lieu de 'n' car 'n' est déjà utilisé pour step
+                self.audio.toggle_enabled();
+                GameAction::Continue
+            }
+            
             KeyCode::Char('q') => GameAction::Quit,
             _ => GameAction::Continue,
         }
     }
     
     fn update(&mut self) -> GameAction {
+        self.start_music_if_needed();
+        
         if self.state == GameState::Running {
             self.update_generation();
         }
@@ -472,7 +566,7 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
     let chunks = Layout::vertical([
         Constraint::Length(4), // Header avec infos
         Constraint::Min(0),    // Zone de jeu
-        Constraint::Length(4), // Footer avec instructions
+        Constraint::Length(5), // Footer avec instructions
     ])
     .split(area);
     
@@ -628,6 +722,12 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
                 "Q".red().bold(),
                 " Quit".white(),
             ]),
+            Line::from(vec![
+                "M".yellow().bold(),
+                " Music  ".white(),
+                "X".yellow().bold(),
+                " Sound Effects".white(),
+            ]),
         ],
         GameState::Running => vec![
             Line::from(vec![
@@ -653,6 +753,12 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
                 "Q".red().bold(),
                 " Quit".white(),
             ]),
+            Line::from(vec![
+                "M".yellow().bold(),
+                " Music  ".white(),
+                "X".yellow().bold(),
+                " Sound Effects".white(),
+            ]),
         ],
         GameState::Paused => vec![
             Line::from(vec![
@@ -677,6 +783,12 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
                 "  ".white(),
                 "Q".red().bold(),
                 " Quit".white(),
+            ]),
+            Line::from(vec![
+                "M".yellow().bold(),
+                " Music  ".white(),
+                "X".yellow().bold(),
+                " Sound Effects".white(),
             ]),
         ],
     };

@@ -4,7 +4,7 @@ use rodio::{
 };
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC, minesweeper::MINESWEEPER_MUSIC, breakout::BREAKOUT_MUSIC};
+use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC, minesweeper::MINESWEEPER_MUSIC, breakout::BREAKOUT_MUSIC, gameoflife::GAMEOFLIFE_MUSIC};
 
 #[derive(Debug, Clone, Copy)]
 pub enum SoundEffect {
@@ -46,6 +46,9 @@ pub enum SoundEffect {
     
     // Game of Life
     GameOfLifeStep,
+    GameOfLifeCellToggle,
+    GameOfLifePatternPlace,
+    GameOfLifeStateChange,
     
     // UI
     MenuSelect,
@@ -336,6 +339,28 @@ impl AudioManager {
                         .take_duration(Duration::from_millis(30))
                 ))
             }
+            SoundEffect::GameOfLifeCellToggle => {
+                // Son de clic doux pour toggle de cellule
+                Some(Box::new(
+                    SineWave::new(440.0)
+                        .take_duration(Duration::from_millis(80))
+                ))
+            }
+            SoundEffect::GameOfLifePatternPlace => {
+                // Son harmonieux pour placement de pattern
+                Some(Box::new(
+                    SineWave::new(659.3) // E5
+                        .mix(SineWave::new(523.3)) // C5
+                        .take_duration(Duration::from_millis(150))
+                ))
+            }
+            SoundEffect::GameOfLifeStateChange => {
+                // Son de transition pour changement d'état
+                Some(Box::new(
+                    SineWave::new(523.3)
+                        .take_duration(Duration::from_millis(120))
+                ))
+            }
             
             // UI sounds
             SoundEffect::MenuSelect => {
@@ -593,6 +618,48 @@ impl AudioManager {
         if let Some(sink) = &self.music_sink {
             let volume = *self.music_volume.lock().unwrap();
             BREAKOUT_MUSIC.play_celebration(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        }
+    }
+    
+    // Jouer la musique de Game of Life (version normale - contemplative)
+    pub fn play_gameoflife_music(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            GAMEOFLIFE_MUSIC.play_normal(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        }
+    }
+    
+    // Version dynamique pour Game of Life (simulations rapides)
+    pub fn play_gameoflife_music_fast(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            GAMEOFLIFE_MUSIC.play_fast(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        }
+    }
+    
+    // Musique d'émerveillement pour Game of Life (patterns complexes)
+    pub fn play_gameoflife_music_celebration(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            GAMEOFLIFE_MUSIC.play_celebration(sink, volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }

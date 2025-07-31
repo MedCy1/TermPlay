@@ -1,6 +1,6 @@
 use crate::core::{GameAction, GameInfo};
 use crate::audio::AudioManager;
-use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC, minesweeper::MINESWEEPER_MUSIC, breakout::BREAKOUT_MUSIC};
+use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC, minesweeper::MINESWEEPER_MUSIC, breakout::BREAKOUT_MUSIC, gameoflife::GAMEOFLIFE_MUSIC};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
@@ -106,6 +106,10 @@ impl MainMenu {
             MusicTrack {
                 name: BREAKOUT_MUSIC.name().to_string(),
                 variants: vec!["Normal".to_string(), "Intense".to_string(), "Victory".to_string()],
+            },
+            MusicTrack {
+                name: GAMEOFLIFE_MUSIC.name().to_string(),
+                variants: vec!["Contemplative".to_string(), "Dynamic".to_string(), "Wonder".to_string()],
             },
         ];
 
@@ -284,6 +288,9 @@ impl MainMenu {
                 "Breakout Arcade" => {
                     self.audio.play_breakout_music();
                 }
+                "Game of Life Ambient" => {
+                    self.audio.play_gameoflife_music();
+                }
                 _ => {}
             }
             
@@ -445,6 +452,7 @@ fn draw_games_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
                 "2048" => "🔢",
                 "Minesweeper" => "💣",
                 "Breakout" => "🧱",
+                "Game of Life" => "🧬",
                 _ => "🎮",
             };
 
