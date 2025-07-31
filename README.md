@@ -175,7 +175,7 @@ cargo build --release --target x86_64-unknown-linux-gnu
   - [x] Tetris
   - [x] Menu
   - [x] Pong
-  - [ ] 2048
+  - [x] 2048
   - [ ] Minesweeper
   - [ ] Breakout
   - [ ] Conway's Game of Life
