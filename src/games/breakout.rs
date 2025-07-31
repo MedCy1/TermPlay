@@ -185,18 +185,21 @@ impl BreakoutGame {
         }
 
         // Relancer la musique si elle est finie
-        if self.music_started && self.audio.is_music_enabled() && self.state == GameState::Playing
-            && self.audio.is_music_empty() {
-                let remaining_bricks = self.count_remaining_bricks();
-                let total_bricks = (BRICK_ROWS * BRICK_COLS) as u32;
-                let completion_ratio = 1.0 - (remaining_bricks as f32 / total_bricks as f32);
+        if self.music_started
+            && self.audio.is_music_enabled()
+            && self.state == GameState::Playing
+            && self.audio.is_music_empty()
+        {
+            let remaining_bricks = self.count_remaining_bricks();
+            let total_bricks = (BRICK_ROWS * BRICK_COLS) as u32;
+            let completion_ratio = 1.0 - (remaining_bricks as f32 / total_bricks as f32);
 
-                if completion_ratio > 0.7 {
-                    self.audio.play_breakout_music_fast();
-                } else {
-                    self.audio.play_breakout_music();
-                }
+            if completion_ratio > 0.7 {
+                self.audio.play_breakout_music_fast();
+            } else {
+                self.audio.play_breakout_music();
             }
+        }
     }
 
     fn count_remaining_bricks(&self) -> u32 {

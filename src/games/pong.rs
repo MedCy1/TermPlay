@@ -174,17 +174,19 @@ impl PongGame {
         }
 
         // Relancer la musique si elle est finie
-        if self.music_started && self.audio.is_music_enabled() && self.state == PongState::Playing
-            && self.audio.is_music_empty() {
-                // Jouer version rapide si la balle va très vite
-                let ball_speed =
-                    (self.ball.velocity.dx.powi(2) + self.ball.velocity.dy.powi(2)).sqrt();
-                if ball_speed > 1.5 {
-                    self.audio.play_pong_music_fast();
-                } else {
-                    self.audio.play_pong_music();
-                }
+        if self.music_started
+            && self.audio.is_music_enabled()
+            && self.state == PongState::Playing
+            && self.audio.is_music_empty()
+        {
+            // Jouer version rapide si la balle va très vite
+            let ball_speed = (self.ball.velocity.dx.powi(2) + self.ball.velocity.dy.powi(2)).sqrt();
+            if ball_speed > 1.5 {
+                self.audio.play_pong_music_fast();
+            } else {
+                self.audio.play_pong_music();
             }
+        }
     }
 
     fn update_ball(&mut self) {
@@ -246,34 +248,36 @@ impl PongGame {
         let ball_y = self.ball.position.y;
 
         // Collision avec le paddle gauche (joueur 1)
-        if ball_x <= self.player1.position.x + 1.0 && ball_x >= self.player1.position.x
+        if ball_x <= self.player1.position.x + 1.0
+            && ball_x >= self.player1.position.x
             && ball_y >= self.player1.position.y
-                && ball_y <= self.player1.position.y + self.player1.height
-            {
-                self.ball.velocity.dx = -self.ball.velocity.dx * 1.05; // Légère accélération
+            && ball_y <= self.player1.position.y + self.player1.height
+        {
+            self.ball.velocity.dx = -self.ball.velocity.dx * 1.05; // Légère accélération
 
-                // Modifier l'angle selon où la balle touche le paddle
-                let hit_pos = (ball_y - self.player1.get_center()) / (self.player1.height / 2.0);
-                self.ball.velocity.dy += hit_pos * 0.3;
+            // Modifier l'angle selon où la balle touche le paddle
+            let hit_pos = (ball_y - self.player1.get_center()) / (self.player1.height / 2.0);
+            self.ball.velocity.dy += hit_pos * 0.3;
 
-                self.ball.position.x = self.player1.position.x + 1.0;
-                self.audio.play_sound(SoundEffect::PongPaddleHit);
-            }
+            self.ball.position.x = self.player1.position.x + 1.0;
+            self.audio.play_sound(SoundEffect::PongPaddleHit);
+        }
 
         // Collision avec le paddle droit (joueur 2 ou IA)
-        if ball_x >= self.player2.position.x - 1.0 && ball_x <= self.player2.position.x
+        if ball_x >= self.player2.position.x - 1.0
+            && ball_x <= self.player2.position.x
             && ball_y >= self.player2.position.y
-                && ball_y <= self.player2.position.y + self.player2.height
-            {
-                self.ball.velocity.dx = -self.ball.velocity.dx * 1.05; // Légère accélération
+            && ball_y <= self.player2.position.y + self.player2.height
+        {
+            self.ball.velocity.dx = -self.ball.velocity.dx * 1.05; // Légère accélération
 
-                // Modifier l'angle selon où la balle touche le paddle
-                let hit_pos = (ball_y - self.player2.get_center()) / (self.player2.height / 2.0);
-                self.ball.velocity.dy += hit_pos * 0.3;
+            // Modifier l'angle selon où la balle touche le paddle
+            let hit_pos = (ball_y - self.player2.get_center()) / (self.player2.height / 2.0);
+            self.ball.velocity.dy += hit_pos * 0.3;
 
-                self.ball.position.x = self.player2.position.x - 1.0;
-                self.audio.play_sound(SoundEffect::PongPaddleHit);
-            }
+            self.ball.position.x = self.player2.position.x - 1.0;
+            self.audio.play_sound(SoundEffect::PongPaddleHit);
+        }
     }
 
     fn check_scoring(&mut self) {

@@ -360,15 +360,14 @@ impl TetrisGame {
         }
 
         // Relancer la musique si elle est finie
-        if self.music_started && self.audio.is_music_enabled()
-            && self.audio.is_music_empty() {
-                // Choisir la version appropriée selon le niveau actuel
-                if self.level >= 7 {
-                    self.audio.play_tetris_music_fast();
-                } else {
-                    self.audio.play_tetris_music();
-                }
+        if self.music_started && self.audio.is_music_enabled() && self.audio.is_music_empty() {
+            // Choisir la version appropriée selon le niveau actuel
+            if self.level >= 7 {
+                self.audio.play_tetris_music_fast();
+            } else {
+                self.audio.play_tetris_music();
             }
+        }
     }
 }
 

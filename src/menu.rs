@@ -436,9 +436,7 @@ impl MainMenu {
         if let Err(e) = self.config_manager.update_audio_config(|config| {
             *config = current_audio_config;
         }) {
-            eprintln!(
-                "Erreur lors de la sauvegarde de la configuration audio: {e}"
-            );
+            eprintln!("Erreur lors de la sauvegarde de la configuration audio: {e}");
         }
     }
 
@@ -536,11 +534,14 @@ impl MainMenu {
 
     pub fn update(&mut self) {
         // Gérer la boucle de musique si on est dans le music player
-        if self.current_menu == MenuState::MusicPlayer && self.current_playing.is_some()
-            && self.audio.is_music_enabled() && self.audio.is_music_empty() {
-                // Relancer la musique si elle est finie
-                self.play_selected_music();
-            }
+        if self.current_menu == MenuState::MusicPlayer
+            && self.current_playing.is_some()
+            && self.audio.is_music_enabled()
+            && self.audio.is_music_empty()
+        {
+            // Relancer la musique si elle est finie
+            self.play_selected_music();
+        }
     }
 }
 

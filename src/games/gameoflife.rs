@@ -118,21 +118,20 @@ impl GameOfLife {
         }
 
         // Relancer la musique si elle est finie
-        if self.music_started && self.audio.is_music_enabled()
-            && self.audio.is_music_empty() {
-                match self.state {
-                    GameState::Running => {
-                        if self.speed >= 4 {
-                            self.audio.play_gameoflife_music_fast();
-                        } else {
-                            self.audio.play_gameoflife_music();
-                        }
-                    }
-                    GameState::Editing | GameState::Paused => {
+        if self.music_started && self.audio.is_music_enabled() && self.audio.is_music_empty() {
+            match self.state {
+                GameState::Running => {
+                    if self.speed >= 4 {
+                        self.audio.play_gameoflife_music_fast();
+                    } else {
                         self.audio.play_gameoflife_music();
                     }
                 }
+                GameState::Editing | GameState::Paused => {
+                    self.audio.play_gameoflife_music();
+                }
             }
+        }
     }
 
     fn resize_grid(&mut self, width: usize, height: usize) {
@@ -144,7 +143,11 @@ impl GameOfLife {
         let mut new_grid = [[CellState::Dead; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT];
 
         // Copier les cellules existantes si elles rentrent dans la nouvelle taille
-        for (y, new_row) in new_grid.iter_mut().enumerate().take(new_height.min(self.grid_height)) {
+        for (y, new_row) in new_grid
+            .iter_mut()
+            .enumerate()
+            .take(new_height.min(self.grid_height))
+        {
             let width = new_width.min(self.grid_width);
             new_row[..width].copy_from_slice(&self.grid[y][..width]);
         }

@@ -115,15 +115,18 @@ impl Game2048 {
         }
 
         // Relancer la musique si elle est finie
-        if self.music_started && self.audio.is_music_enabled() && !self.game_over
-            && self.audio.is_music_empty() {
-                // Choisir la version appropriée selon le score actuel
-                if self.score >= 10000 {
-                    self.audio.play_2048_music_fast();
-                } else {
-                    self.audio.play_2048_music();
-                }
+        if self.music_started
+            && self.audio.is_music_enabled()
+            && !self.game_over
+            && self.audio.is_music_empty()
+        {
+            // Choisir la version appropriée selon le score actuel
+            if self.score >= 10000 {
+                self.audio.play_2048_music_fast();
+            } else {
+                self.audio.play_2048_music();
             }
+        }
     }
 
     fn move_tiles(&mut self, direction: Direction) {

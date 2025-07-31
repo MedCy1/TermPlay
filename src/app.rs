@@ -10,7 +10,7 @@ use ratatui::{
     backend::{Backend, CrosstermBackend},
     Terminal,
 };
-use std::io::{self, Stdout};
+use std::io::{self, Stdout, Write};
 use std::time::{Duration, Instant};
 
 pub struct App {
@@ -27,7 +27,21 @@ impl App {
     pub fn run_game(&mut self, game_name: &str) -> GameResult {
         if let Some(mut game) = self.registry.get_game(game_name) {
             let mut terminal = self.setup_terminal()?;
+
+            // Installer un hook de panic pour nettoyer le terminal
+            let original_hook = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |panic_info| {
+                let _ = disable_raw_mode();
+                let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+                let _ = io::stdout().flush();
+                original_hook(panic_info);
+            }));
+
             let result = self.run_game_loop(&mut game, &mut terminal);
+
+            // Restaurer le hook de panic original
+            let _ = std::panic::take_hook();
+
             self.restore_terminal(&mut terminal)?;
             result
         } else {
@@ -38,6 +52,16 @@ impl App {
 
     pub fn run_menu(&mut self) -> GameResult {
         let mut terminal = self.setup_terminal()?;
+
+        // Installer un hook de panic pour nettoyer le terminal
+        let original_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |panic_info| {
+            let _ = disable_raw_mode();
+            let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+            let _ = io::stdout().flush();
+            original_hook(panic_info);
+        }));
+
         let mut menu = MainMenu::new(self.registry.list_games())
             .map_err(|e| format!("Failed to initialize menu: {e}"))?;
         let mut last_tick = Instant::now();
@@ -61,9 +85,8 @@ impl App {
                                     if let Some(mut game) = self.registry.get_game(selected_game) {
                                         self.run_game_loop(&mut game, &mut terminal)?;
                                         // Recréer le menu après le jeu en préservant la configuration
-                                        menu = MainMenu::new(self.registry.list_games()).map_err(
-                                            |e| format!("Failed to recreate menu: {e}"),
-                                        )?;
+                                        menu = MainMenu::new(self.registry.list_games())
+                                            .map_err(|e| format!("Failed to recreate menu: {e}"))?;
                                     }
                                 }
                             }
@@ -78,6 +101,9 @@ impl App {
                 last_tick = Instant::now();
             }
         }
+
+        // Restaurer le hook de panic original
+        let _ = std::panic::take_hook();
 
         self.restore_terminal(&mut terminal)?;
         Ok(())
@@ -105,13 +131,26 @@ impl App {
     }
 
     fn restore_terminal(&self, terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> GameResult {
-        disable_raw_mode()?;
-        execute!(
+        // Forcer l'affichage du curseur avant tout
+        let _ = terminal.show_cursor();
+
+        // Désactiver le mode raw
+        let _ = disable_raw_mode();
+
+        // Nettoyer l'écran et restaurer le terminal
+        let _ = execute!(
             terminal.backend_mut(),
+            crossterm::terminal::Clear(crossterm::terminal::ClearType::All),
             LeaveAlternateScreen,
             DisableMouseCapture
-        )?;
-        terminal.show_cursor()?;
+        );
+
+        // Forcer un flush final
+        let _ = io::stdout().flush();
+
+        // Petite pause pour s'assurer que tout est nettoyé
+        std::thread::sleep(Duration::from_millis(50));
+
         Ok(())
     }
 

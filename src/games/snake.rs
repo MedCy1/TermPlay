@@ -153,15 +153,14 @@ impl SnakeGame {
         }
 
         // Relancer la musique si elle est finie
-        if self.music_started && self.audio.is_music_enabled()
-            && self.audio.is_music_empty() {
-                // Choisir la version appropriée selon la longueur actuelle
-                if self.snake.len() >= 15 {
-                    self.audio.play_snake_music_fast();
-                } else {
-                    self.audio.play_snake_music();
-                }
+        if self.music_started && self.audio.is_music_enabled() && self.audio.is_music_empty() {
+            // Choisir la version appropriée selon la longueur actuelle
+            if self.snake.len() >= 15 {
+                self.audio.play_snake_music_fast();
+            } else {
+                self.audio.play_snake_music();
             }
+        }
     }
 }
 
