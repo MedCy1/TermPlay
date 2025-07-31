@@ -33,6 +33,7 @@ pub struct SnakeGame {
     width: u16,
     height: u16,
     audio: AudioManager,
+    music_started: bool,
 }
 
 impl SnakeGame {
@@ -52,6 +53,7 @@ impl SnakeGame {
             width,
             height,
             audio: AudioManager::default(),
+            music_started: false,
         }
     }
 
@@ -98,8 +100,10 @@ impl SnakeGame {
             || self.snake.contains(&new_head)
         {
             self.game_over = true;
-            // Jouer le son de game over AVANT de nettoyer la queue
+            // Arrêter la musique et jouer le son de game over
+            self.audio.stop_music();
             self.audio.play_sound(SoundEffect::SnakeGameOver);
+            self.music_started = false;
             return;
         }
 
@@ -136,6 +140,30 @@ impl SnakeGame {
             }
         }
     }
+    
+    fn start_music_if_needed(&mut self) {
+        if !self.music_started && self.audio.is_music_enabled() {
+            // Choisir la version de la musique selon la longueur du serpent
+            if self.snake.len() >= 15 {
+                self.audio.play_snake_music_fast(); // Version rapide pour serpent long
+            } else {
+                self.audio.play_snake_music(); // Version normale
+            }
+            self.music_started = true;
+        }
+        
+        // Relancer la musique si elle est finie
+        if self.music_started && self.audio.is_music_enabled() {
+            if self.audio.is_music_empty() {
+                // Choisir la version appropriée selon la longueur actuelle
+                if self.snake.len() >= 15 {
+                    self.audio.play_snake_music_fast();
+                } else {
+                    self.audio.play_snake_music();
+                }
+            }
+        }
+    }
 }
 
 impl Game for SnakeGame {
@@ -153,6 +181,7 @@ impl Game for SnakeGame {
                 KeyCode::Char('r') => {
                     // Nettoyer l'audio avant de redémarrer
                     self.audio.clear_effects();
+                    self.audio.stop_music();
                     *self = Self::new();
                     GameAction::Continue
                 }
@@ -181,6 +210,11 @@ impl Game for SnakeGame {
                 // Touches pour contrôler l'audio (optionnel)
                 KeyCode::Char('m') => {
                     self.audio.toggle_music();
+                    if self.audio.is_music_enabled() {
+                        self.start_music_if_needed();
+                    } else {
+                        self.music_started = false;
+                    }
                     GameAction::Continue
                 }
                 KeyCode::Char('n') => {
@@ -194,6 +228,9 @@ impl Game for SnakeGame {
 
     fn update(&mut self) -> GameAction {
         if !self.game_over {
+            // Démarrer la musique si ce n'est pas encore fait
+            self.start_music_if_needed();
+            
             self.move_snake();
         }
         GameAction::Continue
