@@ -1,6 +1,6 @@
 use crate::core::{GameAction, GameInfo};
 use crate::audio::AudioManager;
-use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC};
+use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC, minesweeper::MINESWEEPER_MUSIC};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
@@ -98,6 +98,10 @@ impl MainMenu {
             MusicTrack {
                 name: GAME2048_MUSIC.name().to_string(),
                 variants: vec!["Normal".to_string(), "Fast".to_string(), "Celebration".to_string()],
+            },
+            MusicTrack {
+                name: MINESWEEPER_MUSIC.name().to_string(),
+                variants: vec!["Normal".to_string(), "Intense".to_string(), "Victory".to_string()],
             },
         ];
 
@@ -270,6 +274,9 @@ impl MainMenu {
                 "2048 Zen Mode" => {
                     self.audio.play_2048_music();
                 }
+                "Minesweeper Tension" => {
+                    self.audio.play_minesweeper_music();
+                }
                 _ => {}
             }
             
@@ -429,6 +436,7 @@ fn draw_games_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
                 "tetris" => "🧩",
                 "pong" => "🏓",
                 "2048" => "🔢",
+                "Minesweeper" => "💣",
                 _ => "🎮",
             };
 

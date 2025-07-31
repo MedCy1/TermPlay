@@ -2,6 +2,7 @@ pub mod tetris;
 pub mod snake;
 pub mod pong;
 pub mod _2048;
+pub mod minesweeper;
 
 use rodio::{source::{Source, SineWave}, Sink};
 use std::time::Duration;

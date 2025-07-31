@@ -4,7 +4,7 @@ use rodio::{
 };
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC};
+use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC, minesweeper::MINESWEEPER_MUSIC};
 
 #[derive(Debug, Clone, Copy)]
 pub enum SoundEffect {
@@ -36,6 +36,13 @@ pub enum SoundEffect {
     Game2048Merge,
     Game2048GameOver,
     Game2048Victory,
+    
+    // Minesweeper
+    MinesweeperReveal,
+    MinesweeperFlag,
+    MinesweeperUnflag,
+    MinesweeperMineHit,
+    MinesweeperVictory,
     
     // Game of Life
     GameOfLifeStep,
@@ -283,6 +290,45 @@ impl AudioManager {
                 ))
             }
             
+            // Minesweeper sounds
+            SoundEffect::MinesweeperReveal => {
+                // Son doux pour révéler une case
+                Some(Box::new(
+                    SineWave::new(600.0)
+                        .take_duration(Duration::from_millis(80))
+                ))
+            }
+            SoundEffect::MinesweeperFlag => {
+                // Son de clic pour placer un drapeau
+                Some(Box::new(
+                    SquareWave::new(800.0)
+                        .take_duration(Duration::from_millis(60))
+                ))
+            }
+            SoundEffect::MinesweeperUnflag => {
+                // Son de clic inversé pour retirer un drapeau
+                Some(Box::new(
+                    SquareWave::new(600.0)
+                        .take_duration(Duration::from_millis(50))
+                ))
+            }
+            SoundEffect::MinesweeperMineHit => {
+                // Son d'explosion dramatique
+                Some(Box::new(
+                    SquareWave::new(150.0)
+                        .mix(SquareWave::new(200.0))
+                        .take_duration(Duration::from_millis(800))
+                        .fade_out(Duration::from_millis(300))
+                ))
+            }
+            SoundEffect::MinesweeperVictory => {
+                // Son de victoire triomphant
+                Some(Box::new(
+                    SineWave::new(1200.0)
+                        .take_duration(Duration::from_millis(400))
+                ))
+            }
+            
             // Game of Life
             SoundEffect::GameOfLifeStep => {
                 Some(Box::new(
@@ -463,6 +509,48 @@ impl AudioManager {
         if let Some(sink) = &self.music_sink {
             let volume = *self.music_volume.lock().unwrap();
             GAME2048_MUSIC.play_celebration(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        }
+    }
+    
+    // Jouer la musique de Minesweeper (version normale)
+    pub fn play_minesweeper_music(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            MINESWEEPER_MUSIC.play_normal(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        }
+    }
+    
+    // Version tendue pour Minesweeper (moments critiques)
+    pub fn play_minesweeper_music_fast(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            MINESWEEPER_MUSIC.play_fast(sink, volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        }
+    }
+    
+    // Musique de célébration pour Minesweeper (victoire!)
+    pub fn play_minesweeper_music_celebration(&self) {
+        if !*self.music_enabled.lock().unwrap() {
+            return;
+        }
+        
+        if let Some(sink) = &self.music_sink {
+            let volume = *self.music_volume.lock().unwrap();
+            MINESWEEPER_MUSIC.play_celebration(sink, volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
         }

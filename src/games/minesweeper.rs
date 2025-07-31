@@ -1,4 +1,5 @@
 use crate::core::{Game, GameAction};
+use crate::audio::{AudioManager, SoundEffect};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -46,6 +47,10 @@ pub struct MinesweeperGame {
     mines_generated: bool,
     flags_used: usize,
     cells_revealed: usize,
+    
+    // Audio
+    audio: AudioManager,
+    music_started: bool,
 }
 
 impl MinesweeperGame {
@@ -59,6 +64,9 @@ impl MinesweeperGame {
             mines_generated: false,
             flags_used: 0,
             cells_revealed: 0,
+            
+            audio: AudioManager::default(),
+            music_started: false,
         }
     }
 
@@ -94,6 +102,31 @@ impl MinesweeperGame {
 
         self.mines_generated = true;
     }
+    
+    fn start_music_if_needed(&mut self) {
+        if !self.music_started && self.audio.is_music_enabled() && !self.game_over && !self.won {
+            // Choisir la version selon le nombre de drapeaux utilisés (indicateur de progression)
+            let flag_ratio = self.flags_used as f32 / MINE_COUNT as f32;
+            if flag_ratio > 0.7 {
+                self.audio.play_minesweeper_music_fast(); // Version tendue pour fin de partie
+            } else {
+                self.audio.play_minesweeper_music(); // Version contemplative normale
+            }
+            self.music_started = true;
+        }
+        
+        // Relancer la musique si elle est finie
+        if self.music_started && self.audio.is_music_enabled() && !self.game_over && !self.won {
+            if self.audio.is_music_empty() {
+                let flag_ratio = self.flags_used as f32 / MINE_COUNT as f32;
+                if flag_ratio > 0.7 {
+                    self.audio.play_minesweeper_music_fast();
+                } else {
+                    self.audio.play_minesweeper_music();
+                }
+            }
+        }
+    }
 
     fn count_adjacent_mines(&self, x: usize, y: usize) -> u8 {
         let mut count = 0;
@@ -121,6 +154,10 @@ impl MinesweeperGame {
     }
 
     fn reveal_cell(&mut self, x: usize, y: usize) {
+        self.reveal_cell_internal(x, y, true);
+    }
+    
+    fn reveal_cell_internal(&mut self, x: usize, y: usize, play_sound: bool) {
         if x >= GRID_WIDTH || y >= GRID_HEIGHT {
             return;
         }
@@ -140,6 +177,8 @@ impl MinesweeperGame {
 
         if cell.is_mine {
             self.game_over = true;
+            // Son d'explosion
+            self.audio.play_sound(SoundEffect::MinesweeperMineHit);
             // Révéler toutes les mines
             for row in &mut self.grid {
                 for cell in row {
@@ -149,6 +188,11 @@ impl MinesweeperGame {
                 }
             }
             return;
+        }
+
+        // Son de révélation normale - seulement pour le clic initial
+        if play_sound {
+            self.audio.play_sound(SoundEffect::MinesweeperReveal);
         }
 
         // Si la case n'a pas de mines adjacentes, révéler les cases voisines
@@ -163,7 +207,7 @@ impl MinesweeperGame {
                     let ny = y as i32 + dy;
 
                     if nx >= 0 && nx < GRID_WIDTH as i32 && ny >= 0 && ny < GRID_HEIGHT as i32 {
-                        self.reveal_cell(nx as usize, ny as usize);
+                        self.reveal_cell_internal(nx as usize, ny as usize, false);
                     }
                 }
             }
@@ -172,6 +216,11 @@ impl MinesweeperGame {
         // Vérifier la victoire
         if self.cells_revealed == (GRID_WIDTH * GRID_HEIGHT - MINE_COUNT) {
             self.won = true;
+            // Son de victoire
+            self.audio.play_sound(SoundEffect::MinesweeperVictory);
+            self.audio.stop_music();
+            self.audio.play_minesweeper_music_celebration();
+            self.music_started = false;
         }
     }
 
@@ -186,11 +235,15 @@ impl MinesweeperGame {
                 if self.flags_used < MINE_COUNT {
                     cell.state = CellState::Flagged;
                     self.flags_used += 1;
+                    // Son de placement de drapeau
+                    self.audio.play_sound(SoundEffect::MinesweeperFlag);
                 }
             }
             CellState::Flagged => {
                 cell.state = CellState::Hidden;
                 self.flags_used -= 1;
+                // Son de retrait de drapeau
+                self.audio.play_sound(SoundEffect::MinesweeperUnflag);
             }
             CellState::Revealed => {}
         }
@@ -205,6 +258,9 @@ impl MinesweeperGame {
         self.mines_generated = false;
         self.flags_used = 0;
         self.cells_revealed = 0;
+        
+        self.audio.stop_music();
+        self.music_started = false;
     }
 
     fn get_cell_color(cell: &Cell) -> Color {
@@ -273,6 +329,14 @@ impl Game for MinesweeperGame {
                     GameAction::Continue
                 }
                 KeyCode::Char('q') => GameAction::Quit,
+                KeyCode::Char('m') => {
+                    self.audio.toggle_music();
+                    GameAction::Continue
+                }
+                KeyCode::Char('n') => {
+                    self.audio.toggle_enabled();
+                    GameAction::Continue
+                }
                 _ => GameAction::Continue,
             }
         } else {
@@ -314,12 +378,21 @@ impl Game for MinesweeperGame {
                     GameAction::Continue
                 }
                 KeyCode::Char('q') => GameAction::Quit,
+                KeyCode::Char('m') => {
+                    self.audio.toggle_music();
+                    GameAction::Continue
+                }
+                KeyCode::Char('n') => {
+                    self.audio.toggle_enabled();
+                    GameAction::Continue
+                }
                 _ => GameAction::Continue,
             }
         }
     }
 
     fn update(&mut self) -> GameAction {
+        self.start_music_if_needed();
         GameAction::Continue
     }
 
@@ -339,7 +412,7 @@ fn draw_minesweeper_game(frame: &mut ratatui::Frame, game: &MinesweeperGame) {
     let chunks = Layout::vertical([
         Constraint::Length(4), // Header avec infos
         Constraint::Min(0),    // Zone de jeu
-        Constraint::Length(3), // Footer avec instructions
+        Constraint::Length(4), // Footer avec instructions
     ])
     .split(area);
 
@@ -430,31 +503,47 @@ fn draw_minesweeper_game(frame: &mut ratatui::Frame, game: &MinesweeperGame) {
 
     // === FOOTER ===
     let instructions = if game.game_over || game.won {
-        vec![Line::from(vec![
-            if game.won {
-                "🎉 YOU WON! 🎉".green().bold()
-            } else {
-                "💥 GAME OVER 💥".red().bold()
-            },
-            "  ".white(),
-            "R".green().bold(),
-            " Restart  ".white(),
-            "Q".red().bold(),
-            " Quit".white(),
-        ])]
+        vec![
+            Line::from(vec![
+                if game.won {
+                    "🎉 YOU WON! 🎉".green().bold()
+                } else {
+                    "💥 GAME OVER 💥".red().bold()
+                },
+                "  ".white(),
+                "R".green().bold(),
+                " Restart  ".white(),
+                "Q".red().bold(),
+                " Quit".white(),
+            ]),
+            Line::from(vec![
+                "M".yellow().bold(),
+                " Music  ".white(),
+                "N".yellow().bold(),
+                " Sound Effects".white(),
+            ]),
+        ]
     } else {
-        vec![Line::from(vec![
-            "↑↓←→".cyan().bold(),
-            " Move  ".white(),
-            "SPACE".cyan().bold(),
-            " Reveal  ".white(),
-            "F".yellow().bold(),
-            " Flag  ".white(),
-            "R".green().bold(),
-            " Restart  ".white(),
-            "Q".red().bold(),
-            " Quit".white(),
-        ])]
+        vec![
+            Line::from(vec![
+                "↑↓←→".cyan().bold(),
+                " Move  ".white(),
+                "SPACE".cyan().bold(),
+                " Reveal  ".white(),
+                "F".yellow().bold(),
+                " Flag  ".white(),
+                "R".green().bold(),
+                " Restart  ".white(),
+                "Q".red().bold(),
+                " Quit".white(),
+            ]),
+            Line::from(vec![
+                "M".yellow().bold(),
+                " Music  ".white(),
+                "N".yellow().bold(),
+                " Sound Effects".white(),
+            ]),
+        ]
     };
 
     let footer = Paragraph::new(instructions)
