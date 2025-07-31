@@ -124,15 +124,31 @@ jobs:
           cat > .cross/Dockerfile.aarch64 << 'EOF'
           FROM ghcr.io/cross-rs/aarch64-unknown-linux-gnu:edge
 
-          RUN dpkg --add-architecture arm64 && \
+          # Install build dependencies
+          RUN apt-get update && \
+              apt-get install -y \
+                  pkg-config \
+                  build-essential && \
+              dpkg --add-architecture arm64 && \
               apt-get update && \
               apt-get install -y \
                   libasound2-dev:arm64 \
-                  pkg-config:arm64 && \
+                  libc6-dev:arm64 && \
               rm -rf /var/lib/apt/lists/*
 
-          ENV PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+          # Configure pkg-config for cross-compilation
+          ENV PKG_CONFIG_PATH="/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
+          ENV PKG_CONFIG_LIBDIR="/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
+          ENV PKG_CONFIG_SYSROOT_DIR="/"
           ENV PKG_CONFIG_ALLOW_CROSS=1
+          ENV PKG_CONFIG_ALLOW_SYSTEM_LIBS=1
+          ENV PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
+
+          # Set target-specific environment variables
+          ENV CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc
+          ENV CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
+          ENV AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar
+          ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
           EOF
 
       # Build natif
