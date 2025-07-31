@@ -177,7 +177,7 @@ cargo build --release --target x86_64-unknown-linux-gnu
   - [x] Pong
   - [x] 2048
   - [x] Minesweeper
-  - [ ] Breakout
+  - [x] Breakout
   - [ ] Conway's Game of Life
 - [ ] **High Scores** - Persistent leaderboards
 - [ ] **Themes** - Customizable color schemes
