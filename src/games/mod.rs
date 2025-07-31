@@ -4,7 +4,7 @@ use std::collections::HashMap;
 pub mod snake;
 pub mod tetris;
 pub mod pong;
-pub mod game2048;
+pub mod _2048;
 pub mod minesweeper;
 pub mod breakout;
 pub mod gameoflife;
@@ -64,9 +64,9 @@ impl GameRegistry {
             Box::new(pong::PongGame::new())
         });
 
-        let game2048 = game2048::Game2048::new();
+        let game2048 = _2048::Game2048::new();
         self.register(game2048.name(), game2048.description(), || {
-            Box::new(game2048::Game2048::new())
+            Box::new(_2048::Game2048::new())
         });
 
         let minesweeper_game = minesweeper::MinesweeperGame::new();

@@ -1,6 +1,6 @@
 use crate::core::{GameAction, GameInfo};
 use crate::audio::AudioManager;
-use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, game2048::GAME2048_MUSIC};
+use crate::music::{GameMusic, tetris::TETRIS_MUSIC, snake::SNAKE_MUSIC, pong::PONG_MUSIC, _2048::GAME2048_MUSIC};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},

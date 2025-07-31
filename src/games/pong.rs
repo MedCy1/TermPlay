@@ -208,7 +208,7 @@ impl PongGame {
             self.ball.position.y = self.ball.position.y.clamp(0.0, self.height - 1.0);
             
             // Jouer le son de collision avec le mur seulement si on vient de toucher
-            if (old_y > 0.0 && old_y < self.height - 1.0) {
+            if old_y > 0.0 && old_y < self.height - 1.0 {
                 self.audio.play_sound(SoundEffect::PongWallHit);
             }
         }
