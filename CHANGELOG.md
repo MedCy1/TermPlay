@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.0] - 2025-08-01
+
+- feat: update CI/CD pipeline to trigger on version tags and include them in release conditions (be422f5)
+
 ## [1.2.0] - 2025-08-01
 
 - feat: update CI/CD pipeline to support created releases and enhance build process (660bb29)
