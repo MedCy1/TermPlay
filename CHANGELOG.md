@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.1] - 2025-08-01
+
+- fix: improve version retrieval and validation in release script (cd44771)
+- feat: implement cleanup methods for audio resources in games and menu (f5548a0)
+- refactor: remove name and description methods from Game trait implementations (ddeed5b)
+- fix: emphasize the enjoyment of playing classic games in the README (81f4b2d)
+- fix: update license from MIT to Apache-2.0 in Cargo.toml (0b35e0f)
+- feat: update README.md to include new games and installation instructions (fffd4b7)
+
 ## [1.3.0] - 2025-08-01
 
 - feat: update CI/CD pipeline to trigger on version tags and include them in release conditions (be422f5)
