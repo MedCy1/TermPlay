@@ -68,7 +68,7 @@ check_prerequisites() {
 
 # Get current version
 get_current_version() {
-    grep "^version" Cargo.toml | sed 's/version = "\(.*\)"/\1/'
+    grep "^version" Cargo.toml | cut -d'"' -f2
 }
 
 # Calculate new version
@@ -76,10 +76,16 @@ calculate_new_version() {
     local current_version=$1
     local bump_type=$2
     
+    # Validate version format
+    if [[ ! $current_version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        log_error "Invalid version format: $current_version"
+        exit 1
+    fi
+    
     IFS='.' read -ra VERSION_PARTS <<< "$current_version"
-    major=${VERSION_PARTS[0]}
-    minor=${VERSION_PARTS[1]}
-    patch=${VERSION_PARTS[2]}
+    major=${VERSION_PARTS[0]:-0}
+    minor=${VERSION_PARTS[1]:-0}
+    patch=${VERSION_PARTS[2]:-0}
     
     case $bump_type in
         major)
