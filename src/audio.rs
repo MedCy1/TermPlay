@@ -775,3 +775,35 @@ impl Default for AudioManager {
         })
     }
 }
+
+impl AudioManager {
+    /// Nettoyage propre des ressources audio
+    pub fn shutdown(&mut self) {
+        // Arrêter et vider tous les sinks
+        if let Some(sink) = &self.effects_sink {
+            sink.stop();
+            sink.clear();
+        }
+
+        if let Some(sink) = &self.music_sink {
+            sink.stop();
+            sink.clear();
+        }
+
+        // Attendre un peu pour que les sinks se vident
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        // Explicitement drop les sinks avant l'OutputStream
+        self.effects_sink = None;
+        self.music_sink = None;
+
+        // Puis drop l'OutputStream
+        self._stream = None;
+    }
+}
+
+impl Drop for AudioManager {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}

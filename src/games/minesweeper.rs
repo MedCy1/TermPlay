@@ -400,6 +400,11 @@ impl Game for MinesweeperGame {
     fn tick_rate(&self) -> Duration {
         Duration::from_millis(100)
     }
+
+    fn cleanup(&mut self) {
+        // Nettoyer proprement les ressources audio
+        self.audio.shutdown();
+    }
 }
 
 fn draw_minesweeper_game(frame: &mut ratatui::Frame, game: &MinesweeperGame) {

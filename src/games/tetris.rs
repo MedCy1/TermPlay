@@ -458,6 +458,11 @@ impl Game for TetrisGame {
     fn tick_rate(&self) -> Duration {
         Duration::from_millis(50) // Plus rapide pour une meilleure réactivité
     }
+
+    fn cleanup(&mut self) {
+        // Nettoyer proprement les ressources audio
+        self.audio.shutdown();
+    }
 }
 
 fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {

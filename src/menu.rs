@@ -543,6 +543,11 @@ impl MainMenu {
             self.play_selected_music();
         }
     }
+
+    /// Nettoie les ressources audio avant fermeture
+    pub fn cleanup_audio(&mut self) {
+        self.audio.shutdown();
+    }
 }
 
 fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {

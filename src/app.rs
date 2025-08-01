@@ -105,6 +105,9 @@ impl App {
         // Restaurer le hook de panic original
         let _ = std::panic::take_hook();
 
+        // IMPORTANT: Nettoyer l'audio AVANT de restaurer le terminal
+        menu.cleanup_audio();
+
         self.restore_terminal(&mut terminal)?;
         Ok(())
     }
@@ -191,6 +194,9 @@ impl App {
                 last_tick = Instant::now();
             }
         }
+
+        // Nettoyer les ressources du jeu avant de sortir
+        game.cleanup();
 
         Ok(())
     }
