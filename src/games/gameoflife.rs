@@ -1,5 +1,6 @@
 use crate::audio::{AudioManager, SoundEffect};
 use crate::core::{Game, GameAction};
+use crate::highscores::{GameData, HighScoreManager, Score};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -62,6 +63,13 @@ pub struct GameOfLife {
     // Audio
     audio: AudioManager,
     music_started: bool,
+
+    // High scores
+    highscore_manager: HighScoreManager,
+    start_time: std::time::Instant,
+    score_saved: bool,
+    max_generations_reached: u32,
+    population_history: Vec<u32>,
 }
 
 impl GameOfLife {
@@ -81,6 +89,12 @@ impl GameOfLife {
 
             audio: AudioManager::default(),
             music_started: false,
+
+            highscore_manager: HighScoreManager::default(),
+            start_time: std::time::Instant::now(),
+            score_saved: false,
+            max_generations_reached: 0,
+            population_history: Vec::new(),
         };
 
         // Commencer avec un pattern initial
@@ -322,6 +336,16 @@ impl GameOfLife {
         self.grid = self.next_grid;
         self.generation += 1;
 
+        // Mettre à jour les statistiques pour les high scores
+        self.max_generations_reached = self.max_generations_reached.max(self.generation);
+        let current_population = self.count_population();
+        self.population_history.push(current_population);
+
+        // Garder seulement les 100 dernières générations dans l'historique
+        if self.population_history.len() > 100 {
+            self.population_history.remove(0);
+        }
+
         // Son subtil pour chaque step (mais seulement aux vitesses lentes pour éviter le spam)
         if self.audio.is_enabled() && self.speed <= 3 {
             self.audio.play_sound(SoundEffect::GameOfLifeStep);
@@ -355,6 +379,65 @@ impl GameOfLife {
             4 => Duration::from_millis(125),
             5 => Duration::from_millis(60),
             _ => Duration::from_millis(250),
+        }
+    }
+
+    fn count_population(&self) -> u32 {
+        let mut count = 0;
+        for y in 0..self.grid_height {
+            for x in 0..self.grid_width {
+                if self.grid[y][x] == CellState::Alive {
+                    count += 1;
+                }
+            }
+        }
+        count
+    }
+
+    fn save_high_score_if_needed(&mut self) {
+        // Ne sauvegarder qu'une seule fois
+        if self.score_saved {
+            return;
+        }
+
+        // Calculer un score basé sur les générations atteintes et la stabilité
+        let duration = self.start_time.elapsed().as_secs();
+        let _current_population = self.count_population();
+
+        // Score de base sur les générations
+        let generation_score = self.max_generations_reached * 10;
+
+        // Bonus pour la diversité de population (stabilité vs. dynamisme)
+        let population_diversity = if self.population_history.len() > 10 {
+            let min_pop = *self.population_history.iter().min().unwrap_or(&0);
+            let max_pop = *self.population_history.iter().max().unwrap_or(&0);
+            (max_pop - min_pop) * 5 // Bonus pour la variation
+        } else {
+            0
+        };
+
+        // Bonus de temps (plus longtemps = meilleur score)
+        let time_bonus = (duration as u32).min(3600) / 6; // Max 10 minutes de bonus
+
+        let final_score = generation_score + population_diversity + time_bonus;
+
+        // Vérifier si c'est un high score (minimum 50 points pour éviter les scores triviaux)
+        if final_score >= 50
+            && self
+                .highscore_manager
+                .is_high_score("gameoflife", final_score)
+        {
+            let game_data = GameData::GameOfLife {
+                generations: self.max_generations_reached,
+                duration_seconds: duration,
+            };
+
+            let score = Score::new("Anonymous".to_string(), final_score, game_data);
+
+            // Sauvegarder le score
+            if let Ok(_is_top_10) = self.highscore_manager.add_score("gameoflife", score) {
+                self.score_saved = true;
+            }
         }
     }
 }
@@ -571,7 +654,11 @@ impl Game for GameOfLife {
                 GameAction::Continue
             }
 
-            KeyCode::Char('q') => GameAction::Quit,
+            KeyCode::Char('q') => {
+                // Sauvegarder le score avant de quitter
+                self.save_high_score_if_needed();
+                GameAction::Quit
+            }
             _ => GameAction::Continue,
         }
     }

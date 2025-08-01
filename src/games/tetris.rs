@@ -1,5 +1,6 @@
 use crate::audio::{AudioManager, SoundEffect};
 use crate::core::{Game, GameAction};
+use crate::highscores::{GameData, HighScoreManager, Score};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -177,6 +178,9 @@ pub struct TetrisGame {
     audio: AudioManager,
     music_started: bool,
     tetris_celebration: u32, // Compteur pour afficher "TETRIS!" à l'écran
+    highscore_manager: HighScoreManager,
+    start_time: std::time::Instant,
+    score_saved: bool,
 }
 
 impl TetrisGame {
@@ -193,6 +197,9 @@ impl TetrisGame {
             audio: AudioManager::default(),
             music_started: false,
             tetris_celebration: 0,
+            highscore_manager: HighScoreManager::default(),
+            start_time: std::time::Instant::now(),
+            score_saved: false,
         };
         game.spawn_piece();
         game
@@ -208,6 +215,9 @@ impl TetrisGame {
             self.game_over = true;
             self.audio.stop_music();
             self.audio.play_sound(SoundEffect::TetrisGameOver);
+
+            // Sauvegarder le score si c'est un high score et pas encore sauvé
+            self.save_high_score_if_needed();
         }
     }
 
@@ -369,6 +379,30 @@ impl TetrisGame {
             }
         }
     }
+
+    fn save_high_score_if_needed(&mut self) {
+        // Ne sauvegarder qu'une seule fois
+        if self.score_saved {
+            return;
+        }
+
+        // Vérifier si c'est un high score
+        if self.highscore_manager.is_high_score("tetris", self.score) {
+            let duration = self.start_time.elapsed().as_secs();
+            let game_data = GameData::Tetris {
+                level: self.level,
+                lines_cleared: self.lines_cleared,
+                duration_seconds: duration,
+            };
+
+            let score = Score::new("Anonymous".to_string(), self.score, game_data);
+
+            // Sauvegarder le score
+            if let Ok(_is_top_10) = self.highscore_manager.add_score("tetris", score) {
+                self.score_saved = true;
+            }
+        }
+    }
 }
 
 impl Game for TetrisGame {
@@ -376,6 +410,9 @@ impl Game for TetrisGame {
         if self.game_over {
             match key.code {
                 KeyCode::Char('r') => {
+                    // Nettoyer l'audio avant de redémarrer
+                    self.audio.clear_effects();
+                    self.audio.stop_music();
                     *self = Self::new();
                     GameAction::Continue
                 }

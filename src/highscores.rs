@@ -59,7 +59,7 @@ pub struct HighScores {
 /// Manager principal pour les high scores
 pub struct HighScoreManager {
     scores: HighScores,
-    config_dir: PathBuf,
+    _config_dir: PathBuf,
     scores_file: PathBuf,
 }
 
@@ -69,103 +69,109 @@ impl HighScoreManager {
         let config_dir = dirs::config_dir()
             .ok_or("Unable to find config directory")?
             .join("termplay");
-            
+
         // Créer le répertoire de configuration s'il n'existe pas
         fs::create_dir_all(&config_dir)?;
-        
+
         let scores_file = config_dir.join("highscores.json");
-        
+
         let scores = if scores_file.exists() {
             let content = fs::read_to_string(&scores_file)?;
             serde_json::from_str(&content).unwrap_or_default()
         } else {
             HighScores::default()
         };
-        
+
         Ok(Self {
             scores,
-            config_dir,
+            _config_dir: config_dir,
             scores_file,
         })
     }
-    
+
     /// Ajoute un nouveau score pour un jeu
-    pub fn add_score(&mut self, game_name: &str, score: Score) -> Result<bool, Box<dyn std::error::Error>> {
-        let game_scores = self.scores.games.entry(game_name.to_string()).or_insert_with(Vec::new);
-        
+    pub fn add_score(
+        &mut self,
+        game_name: &str,
+        score: Score,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
+        let game_scores = self.scores.games.entry(game_name.to_string()).or_default();
+
         // Ajouter le score
         game_scores.push(score);
-        
+
         // Trier par score décroissant
         game_scores.sort_by(|a, b| b.score.cmp(&a.score));
-        
+
         // Garder seulement les 10 meilleurs
         let is_top_10 = game_scores.len() <= 10;
         if game_scores.len() > 10 {
             game_scores.truncate(10);
         }
-        
+
         // Sauvegarder
         self.save()?;
-        
+
         Ok(is_top_10)
     }
-    
+
     /// Récupère les high scores pour un jeu
     pub fn get_scores(&self, game_name: &str) -> Vec<&Score> {
-        self.scores.games
+        self.scores
+            .games
             .get(game_name)
             .map(|scores| scores.iter().collect())
             .unwrap_or_default()
     }
-    
+
     /// Récupère le meilleur score pour un jeu
     pub fn get_best_score(&self, game_name: &str) -> Option<&Score> {
-        self.scores.games
-            .get(game_name)?
-            .first()
+        self.scores.games.get(game_name)?.first()
     }
-    
+
     /// Vérifie si un score fait partie du top 10
     pub fn is_high_score(&self, game_name: &str, score: u32) -> bool {
         let game_scores = match self.scores.games.get(game_name) {
             Some(scores) => scores,
             None => return true, // Premier score = high score
         };
-        
+
         if game_scores.len() < 10 {
             return true; // Moins de 10 scores = toujours high score
         }
-        
+
         // Vérifier si le score est meilleur que le 10ème
-        game_scores.get(9).map_or(true, |tenth| score > tenth.score)
+        game_scores.get(9).is_none_or(|tenth| score > tenth.score)
     }
-    
+
     /// Réinitialise les scores d'un jeu
+    #[allow(dead_code)]
     pub fn clear_game_scores(&mut self, game_name: &str) -> Result<(), Box<dyn std::error::Error>> {
         self.scores.games.remove(game_name);
         self.save()
     }
-    
+
     /// Réinitialise tous les scores
+    #[allow(dead_code)]
     pub fn clear_all_scores(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.scores.games.clear();
         self.save()
     }
-    
+
     /// Récupère la liste de tous les jeux avec des scores
     pub fn get_games_with_scores(&self) -> Vec<String> {
         self.scores.games.keys().cloned().collect()
     }
-    
+
     /// Sauvegarde les scores sur disque
     fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
         let content = serde_json::to_string_pretty(&self.scores)?;
         fs::write(&self.scores_file, content)?;
         Ok(())
     }
-    
+
     /// Récupère le chemin du fichier de scores
+    #[allow(dead_code)]
     pub fn get_scores_file_path(&self) -> &PathBuf {
         &self.scores_file
     }
@@ -177,10 +183,10 @@ impl Default for HighScoreManager {
             // Fallback si on ne peut pas créer le manager
             let config_dir = PathBuf::from(".");
             let scores_file = config_dir.join("highscores.json");
-            
+
             Self {
                 scores: HighScores::default(),
-                config_dir,
+                _config_dir: config_dir,
                 scores_file,
             }
         })
@@ -197,29 +203,43 @@ impl Score {
             game_data,
         }
     }
-    
+
     /// Formate la durée en string lisible
     pub fn format_duration(&self) -> String {
         let seconds = match &self.game_data {
-            GameData::Snake { duration_seconds, .. } => *duration_seconds,
-            GameData::Tetris { duration_seconds, .. } => *duration_seconds,
-            GameData::Pong { duration_seconds, .. } => *duration_seconds,
-            GameData::Game2048 { duration_seconds, .. } => *duration_seconds,
-            GameData::Minesweeper { duration_seconds, .. } => *duration_seconds,
-            GameData::Breakout { duration_seconds, .. } => *duration_seconds,
-            GameData::GameOfLife { duration_seconds, .. } => *duration_seconds,
+            GameData::Snake {
+                duration_seconds, ..
+            } => *duration_seconds,
+            GameData::Tetris {
+                duration_seconds, ..
+            } => *duration_seconds,
+            GameData::Pong {
+                duration_seconds, ..
+            } => *duration_seconds,
+            GameData::Game2048 {
+                duration_seconds, ..
+            } => *duration_seconds,
+            GameData::Minesweeper {
+                duration_seconds, ..
+            } => *duration_seconds,
+            GameData::Breakout {
+                duration_seconds, ..
+            } => *duration_seconds,
+            GameData::GameOfLife {
+                duration_seconds, ..
+            } => *duration_seconds,
         };
-        
+
         let minutes = seconds / 60;
         let seconds = seconds % 60;
-        
+
         if minutes > 0 {
-            format!("{}m {}s", minutes, seconds)
+            format!("{minutes}m {seconds}s")
         } else {
-            format!("{}s", seconds)
+            format!("{seconds}s")
         }
     }
-    
+
     /// Formate la date en string lisible
     pub fn format_date(&self) -> String {
         self.timestamp.format("%Y-%m-%d %H:%M").to_string()

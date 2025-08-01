@@ -1,5 +1,6 @@
 use crate::audio::{AudioManager, SoundEffect};
 use crate::core::{Game, GameAction};
+use crate::highscores::{GameData, HighScoreManager, Score};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
@@ -132,6 +133,11 @@ pub struct BreakoutGame {
     // Audio
     audio: AudioManager,
     music_started: bool,
+
+    // High scores
+    highscore_manager: HighScoreManager,
+    start_time: std::time::Instant,
+    score_saved: bool,
 }
 
 impl BreakoutGame {
@@ -159,6 +165,10 @@ impl BreakoutGame {
 
             audio: AudioManager::default(),
             music_started: false,
+
+            highscore_manager: HighScoreManager::default(),
+            start_time: std::time::Instant::now(),
+            score_saved: false,
         }
     }
 
@@ -285,6 +295,9 @@ impl BreakoutGame {
                 self.state = GameState::GameOver;
                 // Son de game over
                 self.audio.play_sound(SoundEffect::BreakoutGameOver);
+
+                // Sauvegarder le score si c'est un high score et pas encore sauvé
+                self.save_high_score_if_needed();
             } else {
                 self.ball.reset(self.paddle.x);
                 self.ball_stuck = true;
@@ -298,6 +311,9 @@ impl BreakoutGame {
             self.audio.stop_music();
             self.audio.play_breakout_music_celebration();
             self.music_started = false;
+
+            // Sauvegarder le score si c'est un high score et pas encore sauvé
+            self.save_high_score_if_needed();
         }
     }
 
@@ -342,9 +358,44 @@ impl BreakoutGame {
         self.score = 0;
         self.lives = 3;
         self.ball_stuck = true;
+        self.score_saved = false;
+        self.start_time = std::time::Instant::now();
 
         self.audio.stop_music();
         self.music_started = false;
+    }
+
+    fn save_high_score_if_needed(&mut self) {
+        // Ne sauvegarder qu'une seule fois
+        if self.score_saved {
+            return;
+        }
+
+        // Vérifier si c'est un high score
+        if self.highscore_manager.is_high_score("breakout", self.score) {
+            let duration = self.start_time.elapsed().as_secs();
+
+            // Calculer les briques détruites
+            let total_bricks = (BRICK_ROWS * BRICK_COLS) as u32;
+            let remaining_bricks = self.count_remaining_bricks();
+            let bricks_broken = total_bricks - remaining_bricks;
+
+            // Calculer un niveau basé sur les briques détruites
+            let level = (bricks_broken / 12).max(1); // Niveau augmente tous les 12 briques
+
+            let game_data = GameData::Breakout {
+                level,
+                bricks_broken,
+                duration_seconds: duration,
+            };
+
+            let score = Score::new("Anonymous".to_string(), self.score, game_data);
+
+            // Sauvegarder le score
+            if let Ok(_is_top_10) = self.highscore_manager.add_score("breakout", score) {
+                self.score_saved = true;
+            }
+        }
     }
 }
 
@@ -369,6 +420,9 @@ impl Game for BreakoutGame {
                     GameAction::Continue
                 }
                 KeyCode::Char('r') => {
+                    // Nettoyer l'audio avant de redémarrer
+                    self.audio.clear_effects();
+                    self.audio.stop_music();
                     self.restart();
                     GameAction::Continue
                 }
@@ -389,6 +443,9 @@ impl Game for BreakoutGame {
                     GameAction::Continue
                 }
                 KeyCode::Char('r') => {
+                    // Nettoyer l'audio avant de redémarrer
+                    self.audio.clear_effects();
+                    self.audio.stop_music();
                     self.restart();
                     GameAction::Continue
                 }
@@ -405,6 +462,9 @@ impl Game for BreakoutGame {
             },
             GameState::GameOver | GameState::Victory => match key.code {
                 KeyCode::Char('r') => {
+                    // Nettoyer l'audio avant de redémarrer
+                    self.audio.clear_effects();
+                    self.audio.stop_music();
                     self.restart();
                     GameAction::Continue
                 }

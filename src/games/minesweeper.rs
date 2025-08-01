@@ -1,5 +1,6 @@
 use crate::audio::{AudioManager, SoundEffect};
 use crate::core::{Game, GameAction};
+use crate::highscores::{GameData, HighScoreManager, Score};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -51,6 +52,11 @@ pub struct MinesweeperGame {
     // Audio
     audio: AudioManager,
     music_started: bool,
+
+    // High scores
+    highscore_manager: HighScoreManager,
+    start_time: std::time::Instant,
+    score_saved: bool,
 }
 
 impl MinesweeperGame {
@@ -67,6 +73,10 @@ impl MinesweeperGame {
 
             audio: AudioManager::default(),
             music_started: false,
+
+            highscore_manager: HighScoreManager::default(),
+            start_time: std::time::Instant::now(),
+            score_saved: false,
         }
     }
 
@@ -192,6 +202,9 @@ impl MinesweeperGame {
                     }
                 }
             }
+
+            // Sauvegarder le score si c'est un high score et pas encore sauvé
+            self.save_high_score_if_needed();
             return;
         }
 
@@ -226,6 +239,9 @@ impl MinesweeperGame {
             self.audio.stop_music();
             self.audio.play_minesweeper_music_celebration();
             self.music_started = false;
+
+            // Sauvegarder le score si c'est un high score et pas encore sauvé
+            self.save_high_score_if_needed();
         }
     }
 
@@ -263,9 +279,56 @@ impl MinesweeperGame {
         self.mines_generated = false;
         self.flags_used = 0;
         self.cells_revealed = 0;
+        self.score_saved = false;
+        self.start_time = std::time::Instant::now();
 
         self.audio.stop_music();
         self.music_started = false;
+    }
+
+    fn save_high_score_if_needed(&mut self) {
+        // Ne sauvegarder qu'une seule fois
+        if self.score_saved {
+            return;
+        }
+
+        // Calculer un score basé sur le temps et les performances
+        let duration = self.start_time.elapsed().as_secs();
+        let base_score = if self.won {
+            // Score de base élevé pour une victoire
+            10000u32
+        } else {
+            // Score basé sur les cellules révélées pour un échec
+            (self.cells_revealed as u32) * 10
+        };
+
+        // Bonus de temps (moins de temps = meilleur score)
+        let time_bonus = if duration > 0 {
+            (3600 / duration.max(1)) as u32 // Bonus inversement proportionnel au temps
+        } else {
+            3600
+        };
+
+        let final_score = base_score + time_bonus;
+
+        // Vérifier si c'est un high score
+        if self
+            .highscore_manager
+            .is_high_score("minesweeper", final_score)
+        {
+            let game_data = GameData::Minesweeper {
+                grid_size: (GRID_WIDTH as u32, GRID_HEIGHT as u32),
+                mines_count: MINE_COUNT as u32,
+                duration_seconds: duration,
+            };
+
+            let score = Score::new("Anonymous".to_string(), final_score, game_data);
+
+            // Sauvegarder le score
+            if let Ok(_is_top_10) = self.highscore_manager.add_score("minesweeper", score) {
+                self.score_saved = true;
+            }
+        }
     }
 
     fn get_cell_color(cell: &Cell) -> Color {
@@ -322,6 +385,9 @@ impl Game for MinesweeperGame {
         if self.game_over || self.won {
             match key.code {
                 KeyCode::Char('r') => {
+                    // Nettoyer l'audio avant de redémarrer
+                    self.audio.clear_effects();
+                    self.audio.stop_music();
                     self.restart();
                     GameAction::Continue
                 }
@@ -371,6 +437,9 @@ impl Game for MinesweeperGame {
                     GameAction::Continue
                 }
                 KeyCode::Char('r') => {
+                    // Nettoyer l'audio avant de redémarrer
+                    self.audio.clear_effects();
+                    self.audio.stop_music();
                     self.restart();
                     GameAction::Continue
                 }

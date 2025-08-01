@@ -110,7 +110,7 @@ impl SnakeGame {
             // Arrêter la musique et jouer le son de game over
             self.audio.stop_music();
             self.audio.play_sound(SoundEffect::SnakeGameOver);
-            
+
             // Sauvegarder le score si c'est un high score et pas encore sauvé
             self.save_high_score_if_needed();
             self.music_started = false;
@@ -172,13 +172,13 @@ impl SnakeGame {
             }
         }
     }
-    
+
     fn save_high_score_if_needed(&mut self) {
         // Ne sauvegarder qu'une seule fois
         if self.score_saved {
             return;
         }
-        
+
         // Vérifier si c'est un high score
         if self.highscore_manager.is_high_score("snake", self.score) {
             let duration = self.start_time.elapsed().as_secs();
@@ -186,9 +186,9 @@ impl SnakeGame {
                 length: self.snake.len(),
                 duration_seconds: duration,
             };
-            
+
             let score = Score::new("Anonymous".to_string(), self.score, game_data);
-            
+
             // Sauvegarder le score
             if let Ok(_is_top_10) = self.highscore_manager.add_score("snake", score) {
                 self.score_saved = true;

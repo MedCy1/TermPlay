@@ -1,5 +1,6 @@
 use crate::audio::{AudioManager, SoundEffect};
 use crate::core::{Game, GameAction};
+use crate::highscores::{GameData, HighScoreManager, Score};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -121,6 +122,11 @@ pub struct PongGame {
     // Audio
     audio: AudioManager,
     music_started: bool,
+
+    // High scores
+    highscore_manager: HighScoreManager,
+    start_time: std::time::Instant,
+    score_saved: bool,
 }
 
 impl PongGame {
@@ -149,6 +155,10 @@ impl PongGame {
 
             audio: AudioManager::default(),
             music_started: false,
+
+            highscore_manager: HighScoreManager::default(),
+            start_time: std::time::Instant::now(),
+            score_saved: false,
         }
     }
 
@@ -157,6 +167,8 @@ impl PongGame {
         self.state = PongState::Playing;
         self.score_player1 = 0;
         self.score_player2 = 0;
+        self.score_saved = false;
+        self.start_time = std::time::Instant::now();
         self.reset_positions();
     }
 
@@ -309,6 +321,9 @@ impl PongGame {
             self.audio.stop_music();
             self.audio.play_pong_music_celebration();
             self.music_started = false;
+
+            // Sauvegarder le score si c'est un high score et pas encore sauvé
+            self.save_high_score_if_needed();
         }
     }
 
@@ -328,6 +343,44 @@ impl PongGame {
             self.player1.position.y *= height_ratio;
             self.player2.position.x = new_width - 4.0; // Repositionner à droite
             self.player2.position.y *= height_ratio;
+        }
+    }
+
+    fn save_high_score_if_needed(&mut self) {
+        // Ne sauvegarder qu'une seule fois
+        if self.score_saved {
+            return;
+        }
+
+        // On sauvegarde seulement le score du joueur humain (joueur 1)
+        // En mode single player, le score du joueur 1 est ce qui compte
+        // En mode 2 joueurs, on peut sauvegarder le meilleur des deux scores
+        let player_score = match self.mode {
+            GameMode::SinglePlayer => self.score_player1, // Score contre l'IA
+            GameMode::TwoPlayer => self.score_player1.max(self.score_player2), // Meilleur score en 2 joueurs
+        };
+
+        // Vérifier si c'est un high score
+        if self.highscore_manager.is_high_score("pong", player_score) {
+            let duration = self.start_time.elapsed().as_secs();
+
+            // Le score de l'adversaire (IA ou joueur 2)
+            let opponent_score = match self.mode {
+                GameMode::SinglePlayer => self.score_player2, // Score de l'IA
+                GameMode::TwoPlayer => self.score_player1.min(self.score_player2), // Score le plus bas
+            };
+
+            let game_data = GameData::Pong {
+                opponent_score,
+                duration_seconds: duration,
+            };
+
+            let score = Score::new("Anonymous".to_string(), player_score, game_data);
+
+            // Sauvegarder le score
+            if let Ok(_is_top_10) = self.highscore_manager.add_score("pong", score) {
+                self.score_saved = true;
+            }
         }
     }
 }
@@ -402,6 +455,9 @@ impl Game for PongGame {
             }
             PongState::GameOver => match key.code {
                 KeyCode::Char('r') => {
+                    // Nettoyer l'audio avant de redémarrer
+                    self.audio.clear_effects();
+                    self.audio.stop_music();
                     self.start_game(self.mode);
                     GameAction::Continue
                 }
