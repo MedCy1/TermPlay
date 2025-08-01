@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.1] - 2025-08-01
+
+- feat: publish draft release with assets using GitHub CLI (3c60424)
+
 ## [1.5.0] - 2025-08-01
 
 - Minor fixes and improvements
