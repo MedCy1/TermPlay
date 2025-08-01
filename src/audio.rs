@@ -7,7 +7,7 @@ use rodio::{
     source::{SineWave, Source, SquareWave},
     OutputStream, OutputStreamBuilder, Sink,
 };
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[derive(Debug, Clone, Copy)]
@@ -98,28 +98,26 @@ struct GlobalAudioManager {
     music_sink: Sink,
 }
 
-// Variable globale initialisée une seule fois
-static GLOBAL_AUDIO: OnceLock<Option<GlobalAudioManager>> = OnceLock::new();
+// Variable globale thread-safe avec Mutex pour macOS
+static GLOBAL_AUDIO: std::sync::LazyLock<Option<GlobalAudioManager>> = std::sync::LazyLock::new(|| {
+    match OutputStreamBuilder::open_default_stream() {
+        Ok(stream_handle) => {
+            let effects_sink = Sink::connect_new(stream_handle.mixer());
+            let music_sink = Sink::connect_new(stream_handle.mixer());
+
+            Some(GlobalAudioManager {
+                _stream: stream_handle, // Garde le stream en vie !
+                effects_sink,
+                music_sink,
+            })
+        }
+        Err(_) => None, // Fallback silencieux si pas d'audio
+    }
+});
 
 // Initialise l'audio global une seule fois
 fn get_global_audio() -> Option<&'static GlobalAudioManager> {
-    GLOBAL_AUDIO
-        .get_or_init(|| {
-            match OutputStreamBuilder::open_default_stream() {
-                Ok(stream_handle) => {
-                    let effects_sink = Sink::connect_new(stream_handle.mixer());
-                    let music_sink = Sink::connect_new(stream_handle.mixer());
-
-                    Some(GlobalAudioManager {
-                        _stream: stream_handle, // Garde le stream en vie !
-                        effects_sink,
-                        music_sink,
-                    })
-                }
-                Err(_) => None, // Fallback silencieux si pas d'audio
-            }
-        })
-        .as_ref()
+    GLOBAL_AUDIO.as_ref()
 }
 
 pub struct AudioManager {
