@@ -7,7 +7,7 @@ use rodio::{
     source::{SineWave, Source, SquareWave},
     OutputStream, OutputStreamBuilder, Sink,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 #[derive(Debug, Clone, Copy)]
@@ -91,10 +91,38 @@ pub enum Note {
     Rest = 0,
 }
 
+// Gestionnaire audio global - reste en vie pendant toute l'exécution
+struct GlobalAudioManager {
+    _stream: OutputStream, // CRUCIAL : doit rester en vie !
+    effects_sink: Sink,
+    music_sink: Sink,
+}
+
+// Variable globale initialisée une seule fois
+static GLOBAL_AUDIO: OnceLock<Option<GlobalAudioManager>> = OnceLock::new();
+
+// Initialise l'audio global une seule fois
+fn get_global_audio() -> Option<&'static GlobalAudioManager> {
+    GLOBAL_AUDIO
+        .get_or_init(|| {
+            match OutputStreamBuilder::open_default_stream() {
+                Ok(stream_handle) => {
+                    let effects_sink = Sink::connect_new(stream_handle.mixer());
+                    let music_sink = Sink::connect_new(stream_handle.mixer());
+
+                    Some(GlobalAudioManager {
+                        _stream: stream_handle, // Garde le stream en vie !
+                        effects_sink,
+                        music_sink,
+                    })
+                }
+                Err(_) => None, // Fallback silencieux si pas d'audio
+            }
+        })
+        .as_ref()
+}
+
 pub struct AudioManager {
-    _stream: Option<OutputStream>,
-    effects_sink: Option<Sink>,
-    music_sink: Option<Sink>,
     master_volume: Arc<Mutex<f32>>,
     volume: Arc<Mutex<f32>>,
     music_volume: Arc<Mutex<f32>>,
@@ -104,38 +132,16 @@ pub struct AudioManager {
 
 impl AudioManager {
     pub fn new_with_config(config: &AudioConfig) -> Result<Self, Box<dyn std::error::Error>> {
-        match OutputStreamBuilder::open_default_stream() {
-            Ok(stream_handle) => {
-                // Créer deux sinks : un pour les effets, un pour la musique
-                let effects_sink = Sink::connect_new(stream_handle.mixer());
-                let music_sink = Sink::connect_new(stream_handle.mixer());
+        // Utilise le gestionnaire audio global - l'OutputStream reste en vie !
+        let has_audio = get_global_audio().is_some();
 
-                Ok(Self {
-                    _stream: Some(stream_handle),
-                    effects_sink: Some(effects_sink),
-                    music_sink: Some(music_sink),
-                    master_volume: Arc::new(Mutex::new(config.master_volume)),
-                    volume: Arc::new(Mutex::new(config.effects_volume)),
-                    music_volume: Arc::new(Mutex::new(config.music_volume)),
-                    enabled: Arc::new(Mutex::new(config.audio_enabled)),
-                    music_enabled: Arc::new(Mutex::new(config.music_enabled)),
-                })
-            }
-            Err(e) => {
-                eprintln!("Erreur d'initialisation audio: {e}");
-                // Fallback en cas d'échec d'initialisation audio
-                Ok(Self {
-                    _stream: None,
-                    effects_sink: None,
-                    music_sink: None,
-                    master_volume: Arc::new(Mutex::new(config.master_volume)),
-                    volume: Arc::new(Mutex::new(config.effects_volume)),
-                    music_volume: Arc::new(Mutex::new(config.music_volume)),
-                    enabled: Arc::new(Mutex::new(false)), // Désactivé si pas d'audio
-                    music_enabled: Arc::new(Mutex::new(false)), // Désactivé si pas d'audio
-                })
-            }
-        }
+        Ok(Self {
+            master_volume: Arc::new(Mutex::new(config.master_volume)),
+            volume: Arc::new(Mutex::new(config.effects_volume)),
+            music_volume: Arc::new(Mutex::new(config.music_volume)),
+            enabled: Arc::new(Mutex::new(has_audio && config.audio_enabled)),
+            music_enabled: Arc::new(Mutex::new(has_audio && config.music_enabled)),
+        })
     }
 
     pub fn play_sound(&self, effect: SoundEffect) {
@@ -143,7 +149,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.effects_sink {
+        if let Some(global_audio) = get_global_audio() {
             let master_volume = *self.master_volume.lock().unwrap();
             let effects_volume = *self.volume.lock().unwrap();
             let source = self.generate_sound(effect);
@@ -161,7 +167,9 @@ impl AudioManager {
 
                 // Appliquer le master volume
                 let final_volume = base_volume * master_volume;
-                sink.append(source.amplify(final_volume));
+                global_audio
+                    .effects_sink
+                    .append(source.amplify(final_volume));
             }
         }
     }
@@ -351,7 +359,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -367,7 +376,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -383,7 +393,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -399,13 +410,13 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
-            SNAKE_MUSIC.play_normal(sink, final_volume);
+            SNAKE_MUSIC.play_normal(&global_audio.music_sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
-            sink.play();
+            global_audio.music_sink.play();
         }
     }
 
@@ -415,7 +426,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -431,7 +443,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -447,7 +460,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -463,7 +477,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -479,7 +494,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -495,7 +511,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -511,7 +528,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -527,7 +545,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -543,7 +562,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -559,7 +579,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -575,7 +596,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -591,7 +613,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -607,7 +630,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -623,7 +647,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -639,7 +664,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -655,7 +681,8 @@ impl AudioManager {
             return;
         }
 
-        if let Some(sink) = &self.music_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
             let final_volume = master_volume * music_volume;
@@ -666,8 +693,8 @@ impl AudioManager {
     }
 
     pub fn stop_music(&self) {
-        if let Some(sink) = &self.music_sink {
-            sink.clear();
+        if let Some(global_audio) = get_global_audio() {
+            global_audio.music_sink.clear();
         }
     }
 
@@ -729,14 +756,15 @@ impl AudioManager {
     }
 
     pub fn clear_effects(&self) {
-        if let Some(sink) = &self.effects_sink {
+        if let Some(global_audio) = get_global_audio() {
+            let sink = &global_audio.effects_sink;
             sink.clear();
         }
     }
 
     pub fn is_music_empty(&self) -> bool {
-        if let Some(sink) = &self.music_sink {
-            sink.empty()
+        if let Some(global_audio) = get_global_audio() {
+            global_audio.music_sink.empty()
         } else {
             true
         }
@@ -763,9 +791,6 @@ impl Default for AudioManager {
         Self::new_with_config(&config).unwrap_or_else(|_| {
             // Fallback silencieux si l'audio n'est pas disponible
             Self {
-                _stream: None,
-                effects_sink: None,
-                music_sink: None,
                 master_volume: Arc::new(Mutex::new(config.master_volume)),
                 volume: Arc::new(Mutex::new(config.effects_volume)),
                 music_volume: Arc::new(Mutex::new(config.music_volume)),
@@ -779,26 +804,12 @@ impl Default for AudioManager {
 impl AudioManager {
     /// Nettoyage propre des ressources audio
     pub fn shutdown(&mut self) {
-        // Arrêter et vider tous les sinks
-        if let Some(sink) = &self.effects_sink {
-            sink.stop();
-            sink.clear();
+        // Arrêter juste la musique et les effets (l'OutputStream global reste en vie)
+        if let Some(global_audio) = get_global_audio() {
+            global_audio.effects_sink.clear();
+            global_audio.music_sink.clear();
         }
-
-        if let Some(sink) = &self.music_sink {
-            sink.stop();
-            sink.clear();
-        }
-
-        // Attendre un peu pour que les sinks se vident
-        std::thread::sleep(std::time::Duration::from_millis(100));
-
-        // Explicitement drop les sinks avant l'OutputStream
-        self.effects_sink = None;
-        self.music_sink = None;
-
-        // Puis drop l'OutputStream
-        self._stream = None;
+        // Pas besoin de dropper l'OutputStream - il reste en vie jusqu'à la fin du programme
     }
 }
 

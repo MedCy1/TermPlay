@@ -683,11 +683,6 @@ impl Game for GameOfLife {
             Duration::from_millis(100)
         }
     }
-
-    fn cleanup(&mut self) {
-        // Nettoyer proprement les ressources audio
-        self.audio.shutdown();
-    }
 }
 
 fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {

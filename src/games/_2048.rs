@@ -517,11 +517,6 @@ impl Game for Game2048 {
     fn tick_rate(&self) -> Duration {
         Duration::from_millis(100) // Pas besoin d'être très rapide pour 2048
     }
-
-    fn cleanup(&mut self) {
-        // Nettoyer proprement les ressources audio
-        self.audio.shutdown();
-    }
 }
 
 fn draw_2048_game(frame: &mut ratatui::Frame, game: &Game2048) {

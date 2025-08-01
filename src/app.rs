@@ -195,8 +195,7 @@ impl App {
             }
         }
 
-        // Nettoyer les ressources du jeu avant de sortir
-        game.cleanup();
+        // Les ressources du jeu seront nettoyées automatiquement par Drop
 
         Ok(())
     }

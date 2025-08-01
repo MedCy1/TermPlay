@@ -18,9 +18,6 @@ pub trait Game {
     fn tick_rate(&self) -> std::time::Duration {
         std::time::Duration::from_millis(250) // Valeur par défaut
     }
-    fn cleanup(&mut self) {
-        // Implémentation par défaut vide - les jeux peuvent override si nécessaire
-    }
 }
 
 #[derive(Debug, Clone)]

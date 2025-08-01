@@ -275,11 +275,6 @@ impl Game for SnakeGame {
 
         Duration::from_millis(final_speed)
     }
-
-    fn cleanup(&mut self) {
-        // Nettoyer proprement les ressources audio
-        self.audio.shutdown();
-    }
 }
 
 fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {

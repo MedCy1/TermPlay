@@ -491,11 +491,6 @@ impl Game for PongGame {
     fn tick_rate(&self) -> Duration {
         Duration::from_millis(25) // Très fluide et réactif
     }
-
-    fn cleanup(&mut self) {
-        // Nettoyer proprement les ressources audio
-        self.audio.shutdown();
-    }
 }
 
 fn draw_pong_game(frame: &mut ratatui::Frame, game: &mut PongGame) {
