@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0] - 2025-08-01
+
+- refactor: remove cleanup method from game implementations, utilize global audio manager for resource management (32d2be6)
+- feat: implement high score management across multiple games (32fc40e)
+- feat: add high score management for games with display in menu (2a0ae0e)
+- fix: adjust release job conditions and update upload step description (c83d2a5)
+
 ## [1.3.1] - 2025-08-01
 
 - fix: improve version retrieval and validation in release script (cd44771)
