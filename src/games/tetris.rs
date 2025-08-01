@@ -372,14 +372,6 @@ impl TetrisGame {
 }
 
 impl Game for TetrisGame {
-    fn name(&self) -> &str {
-        "tetris"
-    }
-
-    fn description(&self) -> &str {
-        "Classic Tetris with line clearing"
-    }
-
     fn handle_key(&mut self, key: KeyEvent) -> GameAction {
         if self.game_over {
             match key.code {

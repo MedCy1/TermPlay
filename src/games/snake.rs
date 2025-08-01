@@ -165,14 +165,6 @@ impl SnakeGame {
 }
 
 impl Game for SnakeGame {
-    fn name(&self) -> &str {
-        "snake"
-    }
-
-    fn description(&self) -> &str {
-        "Classic Snake game"
-    }
-
     fn handle_key(&mut self, key: KeyEvent) -> GameAction {
         if self.game_over {
             match key.code {

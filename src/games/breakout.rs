@@ -349,14 +349,6 @@ impl BreakoutGame {
 }
 
 impl Game for BreakoutGame {
-    fn name(&self) -> &'static str {
-        "Breakout"
-    }
-
-    fn description(&self) -> &'static str {
-        "Brick breaking arcade game"
-    }
-
     fn handle_key(&mut self, key: KeyEvent) -> GameAction {
         match self.state {
             GameState::Playing => match key.code {

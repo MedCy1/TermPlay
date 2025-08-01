@@ -12,8 +12,6 @@ pub enum GameAction {
 }
 
 pub trait Game {
-    fn name(&self) -> &str;
-    fn description(&self) -> &str;
     fn handle_key(&mut self, key: KeyEvent) -> GameAction;
     fn update(&mut self) -> GameAction;
     fn draw(&mut self, frame: &mut Frame);

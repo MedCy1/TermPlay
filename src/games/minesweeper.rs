@@ -318,14 +318,6 @@ impl MinesweeperGame {
 }
 
 impl Game for MinesweeperGame {
-    fn name(&self) -> &'static str {
-        "Minesweeper"
-    }
-
-    fn description(&self) -> &'static str {
-        "Classic mine detection game"
-    }
-
     fn handle_key(&mut self, key: KeyEvent) -> GameAction {
         if self.game_over || self.won {
             match key.code {

@@ -381,14 +381,6 @@ impl Game2048 {
 }
 
 impl Game for Game2048 {
-    fn name(&self) -> &'static str {
-        "2048"
-    }
-
-    fn description(&self) -> &'static str {
-        "Slide numbered tiles to combine them and reach 2048!"
-    }
-
     fn handle_key(&mut self, key: KeyEvent) -> GameAction {
         if self.game_over || self.won {
             match key.code {

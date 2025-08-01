@@ -48,42 +48,38 @@ impl GameRegistry {
     }
 
     fn register_all_games(&mut self) {
-        let snake_game = snake::SnakeGame::new();
-        self.register(snake_game.name(), snake_game.description(), || {
+        // Enregistrer les jeux avec des métadonnées statiques pour éviter l'initialisation audio
+        self.register("snake", "Classic Snake game", || {
             Box::new(snake::SnakeGame::new())
         });
 
-        let tetris_game = tetris::TetrisGame::new();
-        self.register(tetris_game.name(), tetris_game.description(), || {
+        self.register("tetris", "Classic Tetris with line clearing", || {
             Box::new(tetris::TetrisGame::new())
         });
 
-        let pong_game = pong::PongGame::new();
-        self.register(pong_game.name(), pong_game.description(), || {
+        self.register("pong", "Classic Pong with 1 or 2 players", || {
             Box::new(pong::PongGame::new())
         });
 
-        let game2048 = _2048::Game2048::new();
-        self.register(game2048.name(), game2048.description(), || {
-            Box::new(_2048::Game2048::new())
-        });
-
-        let minesweeper_game = minesweeper::MinesweeperGame::new();
         self.register(
-            minesweeper_game.name(),
-            minesweeper_game.description(),
-            || Box::new(minesweeper::MinesweeperGame::new()),
+            "2048",
+            "Slide numbered tiles to combine them and reach 2048!",
+            || Box::new(_2048::Game2048::new()),
         );
 
-        let breakout_game = breakout::BreakoutGame::new();
-        self.register(breakout_game.name(), breakout_game.description(), || {
+        self.register("Minesweeper", "Classic mine detection game", || {
+            Box::new(minesweeper::MinesweeperGame::new())
+        });
+
+        self.register("Breakout", "Brick breaking arcade game", || {
             Box::new(breakout::BreakoutGame::new())
         });
 
-        let gameoflife = gameoflife::GameOfLife::new();
-        self.register(gameoflife.name(), gameoflife.description(), || {
-            Box::new(gameoflife::GameOfLife::new())
-        });
+        self.register(
+            "Game of Life",
+            "Conway's Game of Life - Cellular automaton visualization",
+            || Box::new(gameoflife::GameOfLife::new()),
+        );
     }
 }
 

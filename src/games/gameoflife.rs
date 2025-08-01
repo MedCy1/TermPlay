@@ -360,14 +360,6 @@ impl GameOfLife {
 }
 
 impl Game for GameOfLife {
-    fn name(&self) -> &'static str {
-        "Game of Life"
-    }
-
-    fn description(&self) -> &'static str {
-        "Conway's Game of Life - Cellular automaton visualization"
-    }
-
     fn handle_key(&mut self, key: KeyEvent) -> GameAction {
         match key.code {
             // Contrôles de mouvement

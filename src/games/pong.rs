@@ -333,14 +333,6 @@ impl PongGame {
 }
 
 impl Game for PongGame {
-    fn name(&self) -> &str {
-        "pong"
-    }
-
-    fn description(&self) -> &str {
-        "Classic Pong with 1 or 2 players"
-    }
-
     fn handle_key(&mut self, key: KeyEvent) -> GameAction {
         match self.state {
             PongState::Menu => match key.code {
