@@ -1,5 +1,6 @@
 use crate::audio::{AudioManager, SoundEffect};
 use crate::core::{Game, GameAction};
+use crate::highscores::{GameData, HighScoreManager, Score};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
 use ratatui::{
@@ -34,6 +35,9 @@ pub struct SnakeGame {
     height: u16,
     audio: AudioManager,
     music_started: bool,
+    highscore_manager: HighScoreManager,
+    start_time: std::time::Instant,
+    score_saved: bool,
 }
 
 impl SnakeGame {
@@ -57,6 +61,9 @@ impl SnakeGame {
             height,
             audio: AudioManager::default(),
             music_started: false,
+            highscore_manager: HighScoreManager::default(),
+            start_time: std::time::Instant::now(),
+            score_saved: false,
         }
     }
 
@@ -103,6 +110,9 @@ impl SnakeGame {
             // Arrêter la musique et jouer le son de game over
             self.audio.stop_music();
             self.audio.play_sound(SoundEffect::SnakeGameOver);
+            
+            // Sauvegarder le score si c'est un high score et pas encore sauvé
+            self.save_high_score_if_needed();
             self.music_started = false;
             return;
         }
@@ -159,6 +169,29 @@ impl SnakeGame {
                 self.audio.play_snake_music_fast();
             } else {
                 self.audio.play_snake_music();
+            }
+        }
+    }
+    
+    fn save_high_score_if_needed(&mut self) {
+        // Ne sauvegarder qu'une seule fois
+        if self.score_saved {
+            return;
+        }
+        
+        // Vérifier si c'est un high score
+        if self.highscore_manager.is_high_score("snake", self.score) {
+            let duration = self.start_time.elapsed().as_secs();
+            let game_data = GameData::Snake {
+                length: self.snake.len(),
+                duration_seconds: duration,
+            };
+            
+            let score = Score::new("Anonymous".to_string(), self.score, game_data);
+            
+            // Sauvegarder le score
+            if let Ok(_is_top_10) = self.highscore_manager.add_score("snake", score) {
+                self.score_saved = true;
             }
         }
     }

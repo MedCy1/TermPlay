@@ -1,6 +1,7 @@
 use crate::audio::AudioManager;
 use crate::config::ConfigManager;
 use crate::core::{GameAction, GameInfo};
+use crate::highscores::HighScoreManager;
 use crate::music::{
     breakout::BREAKOUT_MUSIC, gameoflife::GAMEOFLIFE_MUSIC, minesweeper::MINESWEEPER_MUSIC,
     pong::PONG_MUSIC, snake::SNAKE_MUSIC, tetris::TETRIS_MUSIC, GameMusic, _2048::GAME2048_MUSIC,
@@ -18,6 +19,8 @@ use ratatui::{
 pub enum MenuState {
     Main,
     Games,
+    HighScores,
+    HighScoresDetail(String), // Pour afficher les scores d'un jeu spécifique
     MusicPlayer,
     Settings,
     AudioSettings,
@@ -45,6 +48,7 @@ pub struct MainMenu {
     list_state: ListState,
     audio: AudioManager,
     config_manager: ConfigManager,
+    highscore_manager: HighScoreManager,
     music_tracks: Vec<MusicTrack>,
     current_playing: Option<usize>,
     current_variant: Vec<usize>, // Index de la variante sélectionnée pour chaque track
@@ -66,6 +70,11 @@ impl MainMenu {
                 title: "🎮 Games".to_string(),
                 description: "Play exciting terminal games".to_string(),
                 action: MenuAction::EnterSubMenu(MenuState::Games),
+            },
+            MenuOption {
+                title: "🏆 High Scores".to_string(),
+                description: "View best scores and leaderboards".to_string(),
+                action: MenuAction::EnterSubMenu(MenuState::HighScores),
             },
             MenuOption {
                 title: "🎵 Music Player".to_string(),
@@ -149,6 +158,9 @@ impl MainMenu {
 
         // Créer l'AudioManager avec la configuration chargée
         let audio = AudioManager::new_with_config(audio_config)?;
+        
+        // Créer le HighScoreManager
+        let highscore_manager = HighScoreManager::new().unwrap_or_default();
 
         // Initialiser les variantes sélectionnées (index 0 = première variante pour chaque track)
         let current_variant = vec![0; music_tracks.len()];
@@ -161,6 +173,7 @@ impl MainMenu {
             list_state,
             audio,
             config_manager,
+            highscore_manager,
             music_tracks,
             current_playing: None,
             current_variant,
@@ -250,6 +263,11 @@ impl MainMenu {
         let max_items = match self.current_menu {
             MenuState::Main => self.main_options.len(),
             MenuState::Games => self.games_list.len(),
+            MenuState::HighScores => {
+                let games_with_scores = self.highscore_manager.get_games_with_scores();
+                games_with_scores.len().max(1) // Au moins 1 pour "No scores yet"
+            },
+            MenuState::HighScoresDetail(_) => 10, // Top 10 scores
             MenuState::MusicPlayer => self.music_tracks.len(),
             MenuState::Settings => 3,
             MenuState::AudioSettings => 5, // 5 paramètres audio
@@ -268,6 +286,11 @@ impl MainMenu {
         let max_items = match self.current_menu {
             MenuState::Main => self.main_options.len(),
             MenuState::Games => self.games_list.len(),
+            MenuState::HighScores => {
+                let games_with_scores = self.highscore_manager.get_games_with_scores();
+                games_with_scores.len().max(1) // Au moins 1 pour "No scores yet"
+            },
+            MenuState::HighScoresDetail(_) => 10, // Top 10 scores
             MenuState::MusicPlayer => self.music_tracks.len(),
             MenuState::Settings => 3,
             MenuState::AudioSettings => 5, // 5 paramètres audio
@@ -326,6 +349,20 @@ impl MainMenu {
                         self.go_back();
                     }
                 }
+                GameAction::Continue
+            }
+            MenuState::HighScores => {
+                let games_with_scores = self.highscore_manager.get_games_with_scores();
+                if let Some(game_name) = games_with_scores.get(self.selected_index) {
+                    self.current_menu = MenuState::HighScoresDetail(game_name.clone());
+                    self.selected_index = 0;
+                    self.list_state.select(Some(0));
+                }
+                GameAction::Continue
+            }
+            MenuState::HighScoresDetail(_) => {
+                // Retour à la liste des high scores
+                self.go_back();
                 GameAction::Continue
             }
             MenuState::AudioSettings | MenuState::About => {
@@ -566,22 +603,26 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
     .split(area);
 
     // === HEADER ===
-    let title = match app.current_menu {
+    let title = match &app.current_menu {
         MenuState::Main => "TERMPLAY",
         MenuState::Games => "GAMES",
+        MenuState::HighScores => "HIGH SCORES",
+        MenuState::HighScoresDetail(_) => "LEADERBOARD",
         MenuState::MusicPlayer => "MUSIC PLAYER",
         MenuState::Settings => "SETTINGS",
         MenuState::AudioSettings => "AUDIO SETTINGS",
         MenuState::About => "ABOUT",
     };
 
-    let subtitle = match app.current_menu {
-        MenuState::Main => "Terminal Mini-Games Collection",
-        MenuState::Games => "Choose your adventure",
-        MenuState::MusicPlayer => "Listen to game soundtracks",
-        MenuState::Settings => "Configure your experience",
-        MenuState::AudioSettings => "Adjust audio and music settings",
-        MenuState::About => "Information about TermPlay",
+    let subtitle = match &app.current_menu {
+        MenuState::Main => "Terminal Mini-Games Collection".to_string(),
+        MenuState::Games => "Choose your adventure".to_string(),
+        MenuState::HighScores => "Best scores and achievements".to_string(),
+        MenuState::HighScoresDetail(game_name) => format!("Top scores for {}", game_name),
+        MenuState::MusicPlayer => "Listen to game soundtracks".to_string(),
+        MenuState::Settings => "Configure your experience".to_string(),
+        MenuState::AudioSettings => "Adjust audio and music settings".to_string(),
+        MenuState::About => "Information about TermPlay".to_string(),
     };
 
     let header_text = vec![
@@ -590,7 +631,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
             title.yellow().bold(),
             " 🎮".cyan().bold(),
         ]),
-        Line::from(subtitle.magenta()),
+        Line::from(subtitle.as_str().magenta()),
     ];
 
     let header = Paragraph::new(header_text)
@@ -604,9 +645,14 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
     frame.render_widget(header, chunks[0]);
 
     // === ZONE PRINCIPALE ===
-    match app.current_menu {
+    match &app.current_menu {
         MenuState::Main => draw_main_options(frame, chunks[1], app),
         MenuState::Games => draw_games_menu(frame, chunks[1], app),
+        MenuState::HighScores => draw_highscores_menu(frame, chunks[1], app),
+        MenuState::HighScoresDetail(game_name) => {
+            let game_name_clone = game_name.clone();
+            draw_highscores_detail(frame, chunks[1], app, &game_name_clone)
+        },
         MenuState::MusicPlayer => draw_music_player(frame, chunks[1], app),
         MenuState::Settings => draw_settings_menu(frame, chunks[1], app),
         MenuState::AudioSettings => draw_audio_settings_menu(frame, chunks[1], app),
@@ -909,6 +955,132 @@ fn draw_music_player(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
             Style::default()
                 .bg(Color::Rgb(100, 0, 150))
                 .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▶ ");
+
+    frame.render_stateful_widget(list, area, &mut app.list_state);
+}
+
+fn draw_highscores_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
+    let games_with_scores = app.highscore_manager.get_games_with_scores();
+    
+    if games_with_scores.is_empty() {
+        // Aucun score enregistré
+        let paragraph = Paragraph::new("🏆 No high scores yet!\n\nPlay some games to see your scores here.")
+            .block(
+                Block::bordered()
+                    .title(" High Scores ".yellow().bold())
+                    .border_style(Style::new().yellow())
+                    .style(Style::default().bg(Color::Rgb(10, 15, 20))),
+            )
+            .style(Style::default().fg(Color::White))
+            .alignment(Alignment::Center)
+            .wrap(ratatui::widgets::Wrap { trim: true });
+            
+        frame.render_widget(paragraph, area);
+        return;
+    }
+
+    let items: Vec<ListItem> = games_with_scores
+        .iter()
+        .map(|game_name| {
+            let best_score = app.highscore_manager.get_best_score(game_name);
+            let score_text = if let Some(score) = best_score {
+                format!(" (Best: {})", score.score)
+            } else {
+                " (No scores)".to_string()
+            };
+            
+            let content = vec![Line::from(vec![
+                Span::styled("  🎮 ", Style::default().fg(Color::Yellow)),
+                Span::styled(game_name, Style::default().fg(Color::White).bold()),
+                Span::styled(score_text, Style::default().fg(Color::Gray)),
+            ])];
+            ListItem::new(content)
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(
+            Block::bordered()
+                .title(" Games with High Scores ".yellow().bold())
+                .border_style(Style::new().yellow())
+                .style(Style::default().bg(Color::Rgb(10, 15, 20))),
+        )
+        .style(Style::default().fg(Color::White))
+        .highlight_style(
+            Style::default()
+                .bg(Color::Rgb(200, 200, 0))
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▶ ");
+
+    frame.render_stateful_widget(list, area, &mut app.list_state);
+}
+
+fn draw_highscores_detail(frame: &mut Frame, area: Rect, app: &mut MainMenu, game_name: &str) {
+    let scores = app.highscore_manager.get_scores(game_name);
+    
+    if scores.is_empty() {
+        let paragraph = Paragraph::new(format!("🏆 No scores yet for {}!\n\nPlay this game to set your first high score.", game_name))
+            .block(
+                Block::bordered()
+                    .title(format!(" {} Leaderboard ", game_name).yellow().bold())
+                    .border_style(Style::new().yellow())
+                    .style(Style::default().bg(Color::Rgb(10, 15, 20))),
+            )
+            .style(Style::default().fg(Color::White))
+            .alignment(Alignment::Center)
+            .wrap(ratatui::widgets::Wrap { trim: true });
+            
+        frame.render_widget(paragraph, area);
+        return;
+    }
+
+    let items: Vec<ListItem> = scores
+        .iter()
+        .enumerate()
+        .map(|(index, score)| {
+            let rank = index + 1;
+            let medal = match rank {
+                1 => "🥇",
+                2 => "🥈", 
+                3 => "🥉",
+                _ => "🏅",
+            };
+            
+            let player_name = if score.player_name.is_empty() { 
+                "Anonymous" 
+            } else { 
+                &score.player_name 
+            };
+            
+            let content = vec![Line::from(vec![
+                Span::styled(format!(" {}  ", medal), Style::default()),
+                Span::styled(format!("#{:<2} ", rank), Style::default().fg(Color::Yellow).bold()),
+                Span::styled(format!("{:<15} ", player_name), Style::default().fg(Color::White).bold()),
+                Span::styled(format!("{:>8} pts", score.score), Style::default().fg(Color::Green).bold()),
+                Span::styled(format!("  {}", score.format_duration()), Style::default().fg(Color::Gray)),
+                Span::styled(format!("  {}", score.format_date()), Style::default().fg(Color::DarkGray)),
+            ])];
+            ListItem::new(content)
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(
+            Block::bordered()
+                .title(format!(" {} - Top {} ", game_name, scores.len()).yellow().bold())
+                .border_style(Style::new().yellow())
+                .style(Style::default().bg(Color::Rgb(10, 15, 20))),
+        )
+        .style(Style::default().fg(Color::White))
+        .highlight_style(
+            Style::default()
+                .bg(Color::Rgb(200, 200, 0))
+                .fg(Color::Black)
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol("▶ ");
