@@ -99,21 +99,22 @@ struct GlobalAudioManager {
 }
 
 // Variable globale thread-safe avec Mutex pour macOS
-static GLOBAL_AUDIO: std::sync::LazyLock<Option<GlobalAudioManager>> = std::sync::LazyLock::new(|| {
-    match OutputStreamBuilder::open_default_stream() {
-        Ok(stream_handle) => {
-            let effects_sink = Sink::connect_new(stream_handle.mixer());
-            let music_sink = Sink::connect_new(stream_handle.mixer());
+static GLOBAL_AUDIO: std::sync::LazyLock<Option<GlobalAudioManager>> =
+    std::sync::LazyLock::new(|| {
+        match OutputStreamBuilder::open_default_stream() {
+            Ok(stream_handle) => {
+                let effects_sink = Sink::connect_new(stream_handle.mixer());
+                let music_sink = Sink::connect_new(stream_handle.mixer());
 
-            Some(GlobalAudioManager {
-                _stream: stream_handle, // Garde le stream en vie !
-                effects_sink,
-                music_sink,
-            })
+                Some(GlobalAudioManager {
+                    _stream: stream_handle, // Garde le stream en vie !
+                    effects_sink,
+                    music_sink,
+                })
+            }
+            Err(_) => None, // Fallback silencieux si pas d'audio
         }
-        Err(_) => None, // Fallback silencieux si pas d'audio
-    }
-});
+    });
 
 // Initialise l'audio global une seule fois
 fn get_global_audio() -> Option<&'static GlobalAudioManager> {
