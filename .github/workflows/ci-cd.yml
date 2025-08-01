@@ -224,17 +224,23 @@ jobs:
           # Windows
           zip termplay-windows-x86_64.zip termplay-windows-x86_64.exe/termplay-windows-x86_64.exe
 
-      # Upload vers la release GitHub existante (draft créée par le script)
-      - name: Upload release assets to existing draft
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            binaries/termplay-linux-x86_64.tar.gz
-            binaries/termplay-linux-aarch64.tar.gz
-            binaries/termplay-macos-x86_64.tar.gz
-            binaries/termplay-macos-aarch64.tar.gz
-            binaries/termplay-windows-x86_64.zip
-          generate_release_notes: false
+      # Publier la draft release existante avec les assets
+      - name: Publish draft release with assets
+        run: |
+          # Extraire la version depuis le tag
+          VERSION=${GITHUB_REF#refs/tags/v}
+          
+          # Uploader les assets vers la draft release existante
+          gh release upload "v$VERSION" \
+            binaries/termplay-linux-x86_64.tar.gz \
+            binaries/termplay-linux-aarch64.tar.gz \
+            binaries/termplay-macos-x86_64.tar.gz \
+            binaries/termplay-macos-aarch64.tar.gz \
+            binaries/termplay-windows-x86_64.zip \
+            --clobber
+          
+          # Publier la draft release (la rendre publique)
+          gh release edit "v$VERSION" --draft=false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
