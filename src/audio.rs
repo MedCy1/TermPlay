@@ -124,11 +124,7 @@ where
 {
     GLOBAL_AUDIO.with(|audio| {
         if let Ok(audio_ref) = audio.try_borrow() {
-            if let Some(ref global_audio) = *audio_ref {
-                Some(f(global_audio))
-            } else {
-                None
-            }
+            (*audio_ref).as_ref().map(f)
         } else {
             None
         }
@@ -162,29 +158,29 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
-                let master_volume = *self.master_volume.lock().unwrap();
-                let effects_volume = *self.volume.lock().unwrap();
-                let source = self.generate_sound(effect);
+        with_global_audio(|global_audio| {
+            let master_volume = *self.master_volume.lock().unwrap();
+            let effects_volume = *self.volume.lock().unwrap();
+            let source = self.generate_sound(effect);
 
-                if let Some(source) = source {
-                    // Volume spécial pour certains effets
-                    let base_volume = match effect {
-                        SoundEffect::TetrisGameOver
-                        | SoundEffect::SnakeGameOver
-                        | SoundEffect::BreakoutGameOver
-                        | SoundEffect::Game2048GameOver => effects_volume.max(0.4),
-                        SoundEffect::TetrisTetris => effects_volume * 1.2, // Plus fort pour Tetris!
-                        _ => effects_volume,
-                    };
+            if let Some(source) = source {
+                // Volume spécial pour certains effets
+                let base_volume = match effect {
+                    SoundEffect::TetrisGameOver
+                    | SoundEffect::SnakeGameOver
+                    | SoundEffect::BreakoutGameOver
+                    | SoundEffect::Game2048GameOver => effects_volume.max(0.4),
+                    SoundEffect::TetrisTetris => effects_volume * 1.2, // Plus fort pour Tetris!
+                    _ => effects_volume,
+                };
 
-                    // Appliquer le master volume
-                    let final_volume = base_volume * master_volume;
-                    global_audio
-                        .effects_sink
-                        .append(source.amplify(final_volume));
-                }
-        }) {}
+                // Appliquer le master volume
+                let final_volume = base_volume * master_volume;
+                global_audio
+                    .effects_sink
+                    .append(source.amplify(final_volume));
+            }
+        });
     }
 
     fn generate_sound(&self, effect: SoundEffect) -> Option<Box<dyn Source<Item = f32> + Send>> {
@@ -372,15 +368,15 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
-                let sink = &global_audio.music_sink;
-                let master_volume = *self.master_volume.lock().unwrap();
-                let music_volume = *self.music_volume.lock().unwrap();
-                let final_volume = master_volume * music_volume;
-                TETRIS_MUSIC.play_normal(sink, final_volume);
-                // Forcer le démarrage de la lecture dans Rodio 0.21
-                sink.play();
-        }) {}
+        with_global_audio(|global_audio| {
+            let sink = &global_audio.music_sink;
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            TETRIS_MUSIC.play_normal(sink, final_volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        });
     }
 
     // Version alternative plus courte pour les niveaux rapides
@@ -389,15 +385,15 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
-                let sink = &global_audio.music_sink;
-                let master_volume = *self.master_volume.lock().unwrap();
-                let music_volume = *self.music_volume.lock().unwrap();
-                let final_volume = master_volume * music_volume;
-                TETRIS_MUSIC.play_fast(sink, final_volume);
-                // Forcer le démarrage de la lecture dans Rodio 0.21
-                sink.play();
-        }) {}
+        with_global_audio(|global_audio| {
+            let sink = &global_audio.music_sink;
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            TETRIS_MUSIC.play_fast(sink, final_volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        });
     }
 
     // Version avec harmonies pour les moments spéciaux (Tetris!)
@@ -406,15 +402,15 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
-                let sink = &global_audio.music_sink;
-                let master_volume = *self.master_volume.lock().unwrap();
-                let music_volume = *self.music_volume.lock().unwrap();
-                let final_volume = master_volume * music_volume;
-                TETRIS_MUSIC.play_celebration(sink, final_volume);
-                // Forcer le démarrage de la lecture dans Rodio 0.21
-                sink.play();
-        }) {}
+        with_global_audio(|global_audio| {
+            let sink = &global_audio.music_sink;
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            TETRIS_MUSIC.play_celebration(sink, final_volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        });
     }
 
     // Jouer la musique de Snake (version normale)
@@ -423,14 +419,14 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
-                let master_volume = *self.master_volume.lock().unwrap();
-                let music_volume = *self.music_volume.lock().unwrap();
-                let final_volume = master_volume * music_volume;
-                SNAKE_MUSIC.play_normal(&global_audio.music_sink, final_volume);
-                // Forcer le démarrage de la lecture dans Rodio 0.21
-                global_audio.music_sink.play();
-        }) {}
+        with_global_audio(|global_audio| {
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            SNAKE_MUSIC.play_normal(&global_audio.music_sink, final_volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            global_audio.music_sink.play();
+        });
     }
 
     // Version rapide pour Snake (quand le serpent est très long)
@@ -439,15 +435,15 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
-                let sink = &global_audio.music_sink;
-                let master_volume = *self.master_volume.lock().unwrap();
-                let music_volume = *self.music_volume.lock().unwrap();
-                let final_volume = master_volume * music_volume;
-                SNAKE_MUSIC.play_fast(sink, final_volume);
-                // Forcer le démarrage de la lecture dans Rodio 0.21
-                sink.play();
-        }) {}
+        with_global_audio(|global_audio| {
+            let sink = &global_audio.music_sink;
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            SNAKE_MUSIC.play_fast(sink, final_volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        });
     }
 
     // Jouer la musique de Pong (version normale)
@@ -456,15 +452,15 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
-                let sink = &global_audio.music_sink;
-                let master_volume = *self.master_volume.lock().unwrap();
-                let music_volume = *self.music_volume.lock().unwrap();
-                let final_volume = master_volume * music_volume;
-                PONG_MUSIC.play_normal(sink, final_volume);
-                // Forcer le démarrage de la lecture dans Rodio 0.21
-                sink.play();
-        }) {}
+        with_global_audio(|global_audio| {
+            let sink = &global_audio.music_sink;
+            let master_volume = *self.master_volume.lock().unwrap();
+            let music_volume = *self.music_volume.lock().unwrap();
+            let final_volume = master_volume * music_volume;
+            PONG_MUSIC.play_normal(sink, final_volume);
+            // Forcer le démarrage de la lecture dans Rodio 0.21
+            sink.play();
+        });
     }
 
     // Version rapide pour Pong (quand la balle va très vite)
@@ -473,7 +469,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -481,7 +477,7 @@ impl AudioManager {
             PONG_MUSIC.play_fast(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     // Musique de célébration pour Pong
@@ -490,7 +486,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -498,7 +494,7 @@ impl AudioManager {
             PONG_MUSIC.play_celebration(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     // Jouer la musique de 2048 (version normale)
@@ -507,7 +503,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -515,7 +511,7 @@ impl AudioManager {
             GAME2048_MUSIC.play_normal(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     // Version énergique pour 2048 (scores élevés/combos)
@@ -524,7 +520,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -532,7 +528,7 @@ impl AudioManager {
             GAME2048_MUSIC.play_fast(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     // Musique de célébration pour 2048 (victoire!)
@@ -541,7 +537,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -549,7 +545,7 @@ impl AudioManager {
             GAME2048_MUSIC.play_celebration(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     // Jouer la musique de Minesweeper (version normale)
@@ -558,7 +554,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -566,7 +562,7 @@ impl AudioManager {
             MINESWEEPER_MUSIC.play_normal(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     // Version tendue pour Minesweeper (moments critiques)
@@ -575,7 +571,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -583,7 +579,7 @@ impl AudioManager {
             MINESWEEPER_MUSIC.play_fast(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     // Musique de célébration pour Minesweeper (victoire!)
@@ -592,7 +588,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -600,7 +596,7 @@ impl AudioManager {
             MINESWEEPER_MUSIC.play_celebration(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     // Jouer la musique de Breakout (version normale)
@@ -609,7 +605,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -617,7 +613,7 @@ impl AudioManager {
             BREAKOUT_MUSIC.play_normal(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     // Version intense pour Breakout (peu de briques restantes)
@@ -626,7 +622,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -634,7 +630,7 @@ impl AudioManager {
             BREAKOUT_MUSIC.play_fast(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     // Musique de célébration pour Breakout (victoire!)
@@ -643,7 +639,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -651,7 +647,7 @@ impl AudioManager {
             BREAKOUT_MUSIC.play_celebration(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     // Jouer la musique de Game of Life (version normale - contemplative)
@@ -660,7 +656,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -668,7 +664,7 @@ impl AudioManager {
             GAMEOFLIFE_MUSIC.play_normal(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     // Version dynamique pour Game of Life (simulations rapides)
@@ -677,7 +673,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -685,7 +681,7 @@ impl AudioManager {
             GAMEOFLIFE_MUSIC.play_fast(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     // Musique d'émerveillement pour Game of Life (patterns complexes)
@@ -694,7 +690,7 @@ impl AudioManager {
             return;
         }
 
-        if let Some(_) = with_global_audio(|global_audio| {
+        with_global_audio(|global_audio| {
             let sink = &global_audio.music_sink;
             let master_volume = *self.master_volume.lock().unwrap();
             let music_volume = *self.music_volume.lock().unwrap();
@@ -702,13 +698,13 @@ impl AudioManager {
             GAMEOFLIFE_MUSIC.play_celebration(sink, final_volume);
             // Forcer le démarrage de la lecture dans Rodio 0.21
             sink.play();
-        }) {}
+        });
     }
 
     pub fn stop_music(&self) {
-        if let Some(_) = with_global_audio(|global_audio| {
-                global_audio.music_sink.clear();
-        }) {}
+        with_global_audio(|global_audio| {
+            global_audio.music_sink.clear();
+        });
     }
 
     pub fn set_master_volume(&self, volume: f32) {
@@ -769,16 +765,14 @@ impl AudioManager {
     }
 
     pub fn clear_effects(&self) {
-        if let Some(_) = with_global_audio(|global_audio| {
-                let sink = &global_audio.effects_sink;
-                sink.clear();
-        }) {}
+        with_global_audio(|global_audio| {
+            let sink = &global_audio.effects_sink;
+            sink.clear();
+        });
     }
 
     pub fn is_music_empty(&self) -> bool {
-        with_global_audio(|global_audio| {
-            global_audio.music_sink.empty()
-        }).unwrap_or(true)
+        with_global_audio(|global_audio| global_audio.music_sink.empty()).unwrap_or(true)
     }
 
     pub fn get_current_config(&self) -> AudioConfig {
@@ -816,10 +810,10 @@ impl AudioManager {
     /// Nettoyage propre des ressources audio
     pub fn shutdown(&mut self) {
         // Arrêter juste la musique et les effets (l'OutputStream global reste en vie)
-        if let Some(_) = with_global_audio(|global_audio| {
-                global_audio.effects_sink.clear();
-                global_audio.music_sink.clear();
-        }) {}
+        with_global_audio(|global_audio| {
+            global_audio.effects_sink.clear();
+            global_audio.music_sink.clear();
+        });
         // Pas besoin de dropper l'OutputStream - il reste en vie jusqu'à la fin du programme
     }
 }
