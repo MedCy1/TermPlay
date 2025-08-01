@@ -46,8 +46,9 @@ check_prerequisites() {
         exit 1
     fi
     
-    # Check if working directory is clean
-    if ! git diff-index --quiet HEAD --; then
+    # Check if working directory is clean (fixed for Windows/WSL)
+    git update-index --refresh > /dev/null 2>&1 || true
+    if [ -n "$(git status --porcelain)" ]; then
         log_error "Working directory is not clean. Commit your changes before making a release."
         exit 1
     fi
@@ -61,6 +62,12 @@ check_prerequisites() {
     # Check if gh CLI is installed (optional)
     if ! command -v gh &> /dev/null; then
         log_warning "GitHub CLI (gh) is not installed. GitHub releases will need to be created manually."
+    else
+        # Check GitHub CLI authentication
+        if ! gh auth status &> /dev/null; then
+            log_error "GitHub CLI is not authenticated. Run 'gh auth login' first."
+            exit 1
+        fi
     fi
     
     log_success "Prerequisites checked"
@@ -230,16 +237,34 @@ create_github_release() {
         log_info "Creating GitHub release..."
         
         # Extract release notes from changelog
-        local release_notes=$(sed -n "/## \[$version\]/,/## \[/p" CHANGELOG.md | sed '$d' | tail -n +3)
+        local release_notes
+        release_notes=$(sed -n "/## \[$version\]/,/## \[/p" CHANGELOG.md | sed '$d' | tail -n +3)
+        
+        # Si pas de notes, utiliser un message par défaut
+        if [ -z "$release_notes" ]; then
+            release_notes="- Minor fixes and improvements"
+        fi
+        
+        # Créer un fichier temporaire pour les notes
+        local temp_notes=$(mktemp)
+        echo "$release_notes" > "$temp_notes"
         
         # Create release
-        echo "$release_notes" | gh release create "v$version" \
+        if gh release create "v$version" \
             --title "Release $version" \
-            --notes-file - \
-            --draft
-        
-        log_success "GitHub release created (draft)"
-        log_info "Visit https://github.com/$(gh repo view --json owner,name -q '.owner.login + \"/\" + .name')/releases to publish the release"
+            --notes-file "$temp_notes" \
+            --draft; then
+            
+            log_success "GitHub release created (draft)"
+            log_info "Visit your GitHub repository releases page to publish it"
+            
+            # Nettoyer le fichier temporaire
+            rm "$temp_notes"
+        else
+            log_error "Failed to create GitHub release"
+            rm "$temp_notes"
+            return 1
+        fi
     else
         log_warning "GitHub CLI not available. Create the release manually on GitHub."
     fi
