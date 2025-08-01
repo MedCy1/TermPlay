@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.0] - 2025-08-01
+
+- Minor fixes and improvements
+
 ## [1.4.0] - 2025-08-01
 
 - refactor: remove cleanup method from game implementations, utilize global audio manager for resource management (32d2be6)
