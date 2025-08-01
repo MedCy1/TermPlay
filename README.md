@@ -377,4 +377,4 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 **Made with ❤️ by [MedCy1](https://github.com/MedCy1)**
 
-*Enjoy playing classic games in your terminal! 🎮*
+***Enjoy playing classic games in your terminal! 🎮***
