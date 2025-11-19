@@ -497,8 +497,9 @@ impl MainMenu {
         }
     }
 
-    fn play_selected_music(&mut self) {
-        if let Some(track) = self.music_tracks.get(self.selected_index) {
+    /// Jouer une musique à un index spécifique
+    fn play_music_at_index(&mut self, track_index: usize) {
+        if let Some(track) = self.music_tracks.get(track_index) {
             self.audio.stop_music(); // Arrêter toute musique en cours
 
             // S'assurer que l'audio est activé
@@ -510,7 +511,7 @@ impl MainMenu {
             }
 
             // Jouer la musique sélectionnée avec la variante choisie
-            let variant_index = self.current_variant[self.selected_index];
+            let variant_index = self.current_variant[track_index];
 
             match track.name.as_str() {
                 "Tetris (Korobeiniki)" => {
@@ -571,7 +572,19 @@ impl MainMenu {
                 _ => {}
             }
 
-            self.current_playing = Some(self.selected_index);
+            self.current_playing = Some(track_index);
+        }
+    }
+
+    /// Jouer la musique actuellement sélectionnée
+    fn play_selected_music(&mut self) {
+        self.play_music_at_index(self.selected_index);
+    }
+
+    /// Rejouer la musique qui est actuellement en cours de lecture
+    fn replay_current_music(&mut self) {
+        if let Some(playing_index) = self.current_playing {
+            self.play_music_at_index(playing_index);
         }
     }
 
@@ -596,8 +609,8 @@ impl MainMenu {
             && self.audio.is_music_enabled()
             && self.audio.is_music_empty()
         {
-            // Relancer la musique si elle est finie
-            self.play_selected_music();
+            // Relancer la musique qui était en cours de lecture (pas celle sélectionnée)
+            self.replay_current_music();
         }
     }
 
