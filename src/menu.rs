@@ -907,9 +907,13 @@ fn draw_audio_settings_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
 }
 
 fn draw_about_menu(frame: &mut Frame, area: Rect) {
+    // Récupérer la version depuis Cargo.toml automatiquement
+    let version = env!("CARGO_PKG_VERSION");
+    let version_text = format!("🎮 TermPlay v{}", version);
+
     let about_text = vec![
         Line::from(""),
-        Line::from("🎮 TermPlay v0.1.0".cyan().bold()),
+        Line::from(version_text.cyan().bold()),
         Line::from(""),
         Line::from("A beautiful collection of terminal mini-games"),
         Line::from("built with Rust and Ratatui."),
