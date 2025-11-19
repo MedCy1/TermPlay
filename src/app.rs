@@ -84,9 +84,8 @@ impl App {
                                 if let Some(selected_game) = menu.get_selected_game() {
                                     if let Some(mut game) = self.registry.get_game(selected_game) {
                                         self.run_game_loop(&mut game, &mut terminal)?;
-                                        // Recréer le menu après le jeu en préservant la configuration
-                                        menu = MainMenu::new(self.registry.list_games())
-                                            .map_err(|e| format!("Failed to recreate menu: {e}"))?;
+                                        // Ne pas recréer le menu - la pile de navigation est préservée
+                                        // Le menu reviendra automatiquement au menu Games grâce à la pile
                                     }
                                 }
                             }

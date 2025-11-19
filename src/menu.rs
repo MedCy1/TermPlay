@@ -42,6 +42,7 @@ pub enum MenuAction {
 
 pub struct MainMenu {
     current_menu: MenuState,
+    menu_history: Vec<MenuState>, // Pile pour l'historique de navigation
     main_options: Vec<MenuOption>,
     games_list: Vec<GameInfo>,
     selected_index: usize,
@@ -167,6 +168,7 @@ impl MainMenu {
 
         Ok(Self {
             current_menu: MenuState::Main,
+            menu_history: Vec::new(), // Initialiser la pile vide
             main_options,
             games_list: games.into_iter().cloned().collect(),
             selected_index: 0,
@@ -315,9 +317,7 @@ impl MainMenu {
                 if let Some(option) = self.main_options.get(self.selected_index) {
                     match &option.action {
                         MenuAction::EnterSubMenu(menu_state) => {
-                            self.current_menu = menu_state.clone();
-                            self.selected_index = 0;
-                            self.list_state.select(Some(0));
+                            self.navigate_to(menu_state.clone());
                             GameAction::Continue
                         }
                         MenuAction::Quit => GameAction::Quit,
@@ -341,9 +341,7 @@ impl MainMenu {
                 match self.selected_index {
                     0 => {
                         // Audio Settings
-                        self.current_menu = MenuState::AudioSettings;
-                        self.selected_index = 0;
-                        self.list_state.select(Some(0));
+                        self.navigate_to(MenuState::AudioSettings);
                     }
                     _ => {
                         self.go_back();
@@ -354,9 +352,7 @@ impl MainMenu {
             MenuState::HighScores => {
                 let games_with_scores = self.highscore_manager.get_games_with_scores();
                 if let Some(game_name) = games_with_scores.get(self.selected_index) {
-                    self.current_menu = MenuState::HighScoresDetail(game_name.clone());
-                    self.selected_index = 0;
-                    self.list_state.select(Some(0));
+                    self.navigate_to(MenuState::HighScoresDetail(game_name.clone()));
                 }
                 GameAction::Continue
             }
@@ -372,8 +368,24 @@ impl MainMenu {
         }
     }
 
+    /// Navigue vers un nouveau menu en sauvegardant l'état actuel dans la pile
+    fn navigate_to(&mut self, new_menu: MenuState) {
+        // Sauvegarder le menu actuel dans la pile
+        self.menu_history.push(self.current_menu.clone());
+        // Passer au nouveau menu
+        self.current_menu = new_menu;
+        self.selected_index = 0;
+        self.list_state.select(Some(0));
+    }
+
     fn go_back(&mut self) {
-        self.current_menu = MenuState::Main;
+        // Remonter d'un niveau en utilisant la pile
+        if let Some(previous_menu) = self.menu_history.pop() {
+            self.current_menu = previous_menu;
+        } else {
+            // Si la pile est vide, retourner au menu principal
+            self.current_menu = MenuState::Main;
+        }
         self.selected_index = 0;
         self.list_state.select(Some(0));
     }
