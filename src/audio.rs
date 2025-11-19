@@ -809,12 +809,69 @@ impl Default for AudioManager {
 impl AudioManager {
     /// Nettoyage propre des ressources audio
     pub fn shutdown(&mut self) {
-        // Arrêter juste la musique et les effets (l'OutputStream global reste en vie)
+        // Arrêter la musique et les effets
         with_global_audio(|global_audio| {
             global_audio.effects_sink.clear();
             global_audio.music_sink.clear();
         });
-        // Pas besoin de dropper l'OutputStream - il reste en vie jusqu'à la fin du programme
+
+        // IMPORTANT: Nettoyer le GlobalAudioManager pour éviter le message de Rodio
+        // On remplace l'Option<GlobalAudioManager> par None, ce qui drop proprement l'OutputStream
+        // On utilise un bloc pour capturer temporairement toute sortie de Rodio
+
+        // Sauvegarder stderr actuel et le rediriger vers /dev/null temporairement
+        // Cela empêche le message "Dropping OutputStream..." d'apparaître
+        #[cfg(unix)]
+        {
+            use std::os::unix::io::AsRawFd;
+            let stderr_fd = std::io::stderr().as_raw_fd();
+            let old_stderr = unsafe { libc::dup(stderr_fd) };
+
+            if old_stderr >= 0 {
+                let dev_null = std::fs::OpenOptions::new()
+                    .write(true)
+                    .open("/dev/null");
+
+                if let Ok(dev_null) = dev_null {
+                    unsafe {
+                        libc::dup2(dev_null.as_raw_fd(), stderr_fd);
+                    }
+                }
+
+                // Nettoyer l'audio global
+                GLOBAL_AUDIO.with(|audio| {
+                    if let Ok(mut audio_ref) = audio.try_borrow_mut() {
+                        *audio_ref = None;
+                    }
+                });
+
+                // Restaurer stderr
+                unsafe {
+                    libc::dup2(old_stderr, stderr_fd);
+                    libc::close(old_stderr);
+                }
+            } else {
+                // Fallback si dup échoue
+                GLOBAL_AUDIO.with(|audio| {
+                    if let Ok(mut audio_ref) = audio.try_borrow_mut() {
+                        *audio_ref = None;
+                    }
+                });
+            }
+        }
+
+        // Sur Windows, on ne peut pas facilement rediriger stderr, donc on accepte le message
+        #[cfg(not(unix))]
+        {
+            GLOBAL_AUDIO.with(|audio| {
+                if let Ok(mut audio_ref) = audio.try_borrow_mut() {
+                    *audio_ref = None;
+                }
+            });
+        }
+
+        // Petit délai pour s'assurer que tout est nettoyé
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }
 
