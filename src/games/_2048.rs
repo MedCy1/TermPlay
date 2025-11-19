@@ -237,6 +237,7 @@ impl Game2048 {
                 }
             }
             Direction::Up => {
+                #[allow(clippy::needless_range_loop)]
                 for col in 0..GRID_SIZE {
                     let mut line: Vec<u32> = (0..GRID_SIZE)
                         .map(|row| new_grid[row][col])
@@ -284,6 +285,7 @@ impl Game2048 {
                 }
             }
             Direction::Down => {
+                #[allow(clippy::needless_range_loop)]
                 for col in 0..GRID_SIZE {
                     let mut line: Vec<u32> = (0..GRID_SIZE)
                         .map(|row| new_grid[row][col])
