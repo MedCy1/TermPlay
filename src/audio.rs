@@ -828,9 +828,7 @@ impl AudioManager {
             let old_stderr = unsafe { libc::dup(stderr_fd) };
 
             if old_stderr >= 0 {
-                let dev_null = std::fs::OpenOptions::new()
-                    .write(true)
-                    .open("/dev/null");
+                let dev_null = std::fs::OpenOptions::new().write(true).open("/dev/null");
 
                 if let Ok(dev_null) = dev_null {
                     unsafe {
