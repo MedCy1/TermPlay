@@ -262,14 +262,18 @@ impl MainMenu {
     }
 
     fn next_item(&mut self) {
-        let max_items = match self.current_menu {
+        let max_items = match &self.current_menu {
             MenuState::Main => self.main_options.len(),
             MenuState::Games => self.games_list.len(),
             MenuState::HighScores => {
                 let games_with_scores = self.highscore_manager.get_games_with_scores();
                 games_with_scores.len().max(1) // Au moins 1 pour "No scores yet"
             }
-            MenuState::HighScoresDetail(_) => 10, // Top 10 scores
+            MenuState::HighScoresDetail(game_name) => {
+                // Récupérer le nombre réel de scores pour ce jeu
+                let scores = self.highscore_manager.get_scores(game_name);
+                scores.len().max(1) // Au moins 1 pour "No scores yet"
+            }
             MenuState::MusicPlayer => self.music_tracks.len(),
             MenuState::Settings => 3,
             MenuState::AudioSettings => 5, // 5 paramètres audio
@@ -285,14 +289,18 @@ impl MainMenu {
     }
 
     fn previous_item(&mut self) {
-        let max_items = match self.current_menu {
+        let max_items = match &self.current_menu {
             MenuState::Main => self.main_options.len(),
             MenuState::Games => self.games_list.len(),
             MenuState::HighScores => {
                 let games_with_scores = self.highscore_manager.get_games_with_scores();
                 games_with_scores.len().max(1) // Au moins 1 pour "No scores yet"
             }
-            MenuState::HighScoresDetail(_) => 10, // Top 10 scores
+            MenuState::HighScoresDetail(game_name) => {
+                // Récupérer le nombre réel de scores pour ce jeu
+                let scores = self.highscore_manager.get_scores(game_name);
+                scores.len().max(1) // Au moins 1 pour "No scores yet"
+            }
             MenuState::MusicPlayer => self.music_tracks.len(),
             MenuState::Settings => 3,
             MenuState::AudioSettings => 5, // 5 paramètres audio
