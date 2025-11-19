@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.0] - 2025-11-19
+
+- fix: update release script permissions to make it executable (4dfa0cc)
+- fix: suppress clippy warnings for needless range loops in tile movement (78e0317)
+- fix: simplify version string formatting in About menu (3860f32)
+- refactor: streamline file opening for /dev/null in AudioManager (a3a3e59)
+- feat: display version number dynamically in the About menu (3221ddf)
+- feat: refactor music playback methods for improved clarity and functionality (15d08a9)
+- feat: update high scores detail navigation to reflect actual scores count (dd5f470)
+- feat: implement navigation history in MainMenu for improved user experience (4844f74)
+- feat: add libc dependency and improve audio shutdown process (deaef78)
+- feat: enhance release script with GitHub CLI authentication check and default release notes (26abf14)
+
 ## [1.5.1] - 2025-08-01
 
 - feat: publish draft release with assets using GitHub CLI (3c60424)
