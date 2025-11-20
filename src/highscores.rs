@@ -157,9 +157,11 @@ impl HighScoreManager {
         self.save()
     }
 
-    /// Récupère la liste de tous les jeux avec des scores
+    /// Récupère la liste de tous les jeux avec des scores (triée par ordre alphabétique)
     pub fn get_games_with_scores(&self) -> Vec<String> {
-        self.scores.games.keys().cloned().collect()
+        let mut games: Vec<String> = self.scores.games.keys().cloned().collect();
+        games.sort();
+        games
     }
 
     /// Sauvegarde les scores sur disque

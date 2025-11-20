@@ -40,7 +40,9 @@ impl GameRegistry {
     }
 
     pub fn list_games(&self) -> Vec<&GameInfo> {
-        self.info.values().collect()
+        let mut games: Vec<&GameInfo> = self.info.values().collect();
+        games.sort_by(|a, b| a.name.cmp(&b.name));
+        games
     }
 
     pub fn has_game(&self, name: &str) -> bool {
