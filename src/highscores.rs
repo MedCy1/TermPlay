@@ -145,7 +145,6 @@ impl HighScoreManager {
     }
 
     /// Réinitialise les scores d'un jeu
-    #[allow(dead_code)]
     pub fn clear_game_scores(&mut self, game_name: &str) -> Result<(), Box<dyn std::error::Error>> {
         self.scores.games.remove(game_name);
         self.save()
@@ -167,6 +166,17 @@ impl HighScoreManager {
     fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
         let content = serde_json::to_string_pretty(&self.scores)?;
         fs::write(&self.scores_file, content)?;
+        Ok(())
+    }
+
+    /// Recharge les scores depuis le disque
+    pub fn reload(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.scores_file.exists() {
+            let content = fs::read_to_string(&self.scores_file)?;
+            self.scores = serde_json::from_str(&content).unwrap_or_default();
+        } else {
+            self.scores = HighScores::default();
+        }
         Ok(())
     }
 
