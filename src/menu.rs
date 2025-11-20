@@ -276,7 +276,8 @@ impl MainMenu {
                     if let Err(e) = self.highscore_manager.reload() {
                         eprintln!("Error reloading scores: {e}");
                     }
-                    self.audio.play_sound(crate::audio::SoundEffect::MenuConfirm);
+                    self.audio
+                        .play_sound(crate::audio::SoundEffect::MenuConfirm);
                     // Retourner à la liste des high scores
                     self.go_back(); // Retour au HighScoresDetail
                     self.go_back(); // Retour au HighScores
@@ -419,7 +420,10 @@ impl MainMenu {
     /// Navigue vers un nouveau menu en sauvegardant l'état actuel dans la pile
     fn navigate_to(&mut self, new_menu: MenuState) {
         // Recharger les scores si on entre dans le menu High Scores
-        if matches!(new_menu, MenuState::HighScores | MenuState::HighScoresDetail(_)) {
+        if matches!(
+            new_menu,
+            MenuState::HighScores | MenuState::HighScoresDetail(_)
+        ) {
             if let Err(e) = self.highscore_manager.reload() {
                 eprintln!("Error reloading scores: {e}");
             }
