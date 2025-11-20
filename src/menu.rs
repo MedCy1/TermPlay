@@ -21,6 +21,7 @@ pub enum MenuState {
     Games,
     HighScores,
     HighScoresDetail(String), // Pour afficher les scores d'un jeu spécifique
+    ConfirmClearScores(String), // Confirmation pour effacer les scores d'un jeu
     MusicPlayer,
     Settings,
     AudioSettings,
@@ -257,6 +258,39 @@ impl MainMenu {
                 }
                 GameAction::Continue
             }
+            KeyCode::Char('c') => {
+                // Clear scores - demander confirmation
+                if let MenuState::HighScoresDetail(game_name) = &self.current_menu {
+                    self.navigate_to(MenuState::ConfirmClearScores(game_name.clone()));
+                    self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
+                }
+                GameAction::Continue
+            }
+            KeyCode::Char('y') => {
+                // Confirmer la suppression
+                if let MenuState::ConfirmClearScores(game_name) = &self.current_menu {
+                    if let Err(e) = self.highscore_manager.clear_game_scores(game_name) {
+                        eprintln!("Error clearing scores: {e}");
+                    }
+                    // Recharger les scores depuis le disque pour rafraîchir l'affichage
+                    if let Err(e) = self.highscore_manager.reload() {
+                        eprintln!("Error reloading scores: {e}");
+                    }
+                    self.audio.play_sound(crate::audio::SoundEffect::MenuConfirm);
+                    // Retourner à la liste des high scores
+                    self.go_back(); // Retour au HighScoresDetail
+                    self.go_back(); // Retour au HighScores
+                }
+                GameAction::Continue
+            }
+            KeyCode::Char('n') => {
+                // Annuler la suppression
+                if let MenuState::ConfirmClearScores(_) = &self.current_menu {
+                    self.audio.play_sound(crate::audio::SoundEffect::MenuBack);
+                    self.go_back();
+                }
+                GameAction::Continue
+            }
             _ => GameAction::Continue,
         }
     }
@@ -274,6 +308,7 @@ impl MainMenu {
                 let scores = self.highscore_manager.get_scores(game_name);
                 scores.len().max(1) // Au moins 1 pour "No scores yet"
             }
+            MenuState::ConfirmClearScores(_) => 2, // Yes/No
             MenuState::MusicPlayer => self.music_tracks.len(),
             MenuState::Settings => 3,
             MenuState::AudioSettings => 5, // 5 paramètres audio
@@ -301,6 +336,7 @@ impl MainMenu {
                 let scores = self.highscore_manager.get_scores(game_name);
                 scores.len().max(1) // Au moins 1 pour "No scores yet"
             }
+            MenuState::ConfirmClearScores(_) => 2, // Yes/No
             MenuState::MusicPlayer => self.music_tracks.len(),
             MenuState::Settings => 3,
             MenuState::AudioSettings => 5, // 5 paramètres audio
@@ -369,6 +405,10 @@ impl MainMenu {
                 self.go_back();
                 GameAction::Continue
             }
+            MenuState::ConfirmClearScores(_) => {
+                // Enter ne fait rien ici, utiliser Y/N
+                GameAction::Continue
+            }
             MenuState::AudioSettings | MenuState::About => {
                 self.go_back();
                 GameAction::Continue
@@ -378,6 +418,13 @@ impl MainMenu {
 
     /// Navigue vers un nouveau menu en sauvegardant l'état actuel dans la pile
     fn navigate_to(&mut self, new_menu: MenuState) {
+        // Recharger les scores si on entre dans le menu High Scores
+        if matches!(new_menu, MenuState::HighScores | MenuState::HighScoresDetail(_)) {
+            if let Err(e) = self.highscore_manager.reload() {
+                eprintln!("Error reloading scores: {e}");
+            }
+        }
+
         // Sauvegarder le menu actuel dans la pile
         self.menu_history.push(self.current_menu.clone());
         // Passer au nouveau menu
@@ -641,6 +688,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
         MenuState::Games => "GAMES",
         MenuState::HighScores => "HIGH SCORES",
         MenuState::HighScoresDetail(_) => "LEADERBOARD",
+        MenuState::ConfirmClearScores(_) => "CONFIRM DELETION",
         MenuState::MusicPlayer => "MUSIC PLAYER",
         MenuState::Settings => "SETTINGS",
         MenuState::AudioSettings => "AUDIO SETTINGS",
@@ -652,6 +700,9 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
         MenuState::Games => "Choose your adventure".to_string(),
         MenuState::HighScores => "Best scores and achievements".to_string(),
         MenuState::HighScoresDetail(game_name) => format!("Top scores for {game_name}"),
+        MenuState::ConfirmClearScores(game_name) => {
+            format!("Are you sure you want to delete all scores for {game_name}?")
+        }
         MenuState::MusicPlayer => "Listen to game soundtracks".to_string(),
         MenuState::Settings => "Configure your experience".to_string(),
         MenuState::AudioSettings => "Adjust audio and music settings".to_string(),
@@ -686,6 +737,10 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
             let game_name_clone = game_name.clone();
             draw_highscores_detail(frame, chunks[1], app, &game_name_clone)
         }
+        MenuState::ConfirmClearScores(game_name) => {
+            let game_name_clone = game_name.clone();
+            draw_confirm_clear_scores(frame, chunks[1], &game_name_clone)
+        }
         MenuState::MusicPlayer => draw_music_player(frame, chunks[1], app),
         MenuState::Settings => draw_settings_menu(frame, chunks[1], app),
         MenuState::AudioSettings => draw_audio_settings_menu(frame, chunks[1], app),
@@ -699,6 +754,8 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
             "↑↓ Select Track • ←→ Change Variant • Space/Enter Play • S Stop • Esc/Q Back"
         }
         MenuState::AudioSettings => "↑↓ Select Setting • ←→ Adjust Value • Esc/Q Back",
+        MenuState::HighScoresDetail(_) => "C Clear Scores • Esc/Q Back",
+        MenuState::ConfirmClearScores(_) => "Y Yes • N No",
         _ => "Arrow Keys Move • Enter Select • Esc/Q Back",
     };
 
@@ -1145,4 +1202,39 @@ fn draw_highscores_detail(frame: &mut Frame, area: Rect, app: &mut MainMenu, gam
         .highlight_symbol("▶ ");
 
     frame.render_stateful_widget(list, area, &mut app.list_state);
+}
+
+fn draw_confirm_clear_scores(frame: &mut Frame, area: Rect, game_name: &str) {
+    let confirmation_text = vec![
+        Line::from(""),
+        Line::from(""),
+        Line::from("⚠️  WARNING  ⚠️".red().bold()),
+        Line::from(""),
+        Line::from(vec![
+            "You are about to delete ALL high scores for ".white(),
+            game_name.yellow().bold(),
+        ]),
+        Line::from(""),
+        Line::from("This action CANNOT be undone!".red()),
+        Line::from(""),
+        Line::from(""),
+        Line::from(vec![
+            "Press ".gray(),
+            "Y".green().bold(),
+            " to confirm or ".gray(),
+            "N".red().bold(),
+            " to cancel".gray(),
+        ]),
+    ];
+
+    let confirmation = Paragraph::new(confirmation_text)
+        .alignment(Alignment::Center)
+        .block(
+            Block::bordered()
+                .title(" ⚠️  Confirm Deletion  ⚠️ ".red().bold())
+                .border_style(Style::new().red().bold())
+                .style(Style::default().bg(Color::Rgb(30, 10, 10))),
+        );
+
+    frame.render_widget(confirmation, area);
 }
