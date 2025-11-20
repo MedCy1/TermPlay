@@ -42,10 +42,18 @@ pub struct Game2048 {
 
 impl Game2048 {
     pub fn new() -> Self {
+        let highscore_manager = HighScoreManager::default();
+
+        // Charger le meilleur score depuis le fichier de high scores
+        let best_score = highscore_manager
+            .get_best_score("2048")
+            .map(|score| score.score)
+            .unwrap_or(0);
+
         let mut game = Self {
             grid: [[0; GRID_SIZE]; GRID_SIZE],
             score: 0,
-            best_score: 0, // TODO: charger depuis un fichier
+            best_score,
             game_over: false,
             won: false,
             moved: false,
@@ -53,7 +61,7 @@ impl Game2048 {
             audio: AudioManager::default(),
             music_started: false,
 
-            highscore_manager: HighScoreManager::default(),
+            highscore_manager,
             start_time: std::time::Instant::now(),
             score_saved: false,
         };
@@ -168,6 +176,9 @@ impl Game2048 {
                                 self.audio.stop_music();
                                 self.audio.play_2048_music_celebration();
                                 self.music_started = false;
+
+                                // Sauvegarder le score si c'est un high score
+                                self.save_high_score_if_needed();
                             }
                             i += 2; // Skip both tiles
                         } else {
@@ -214,6 +225,9 @@ impl Game2048 {
                                 self.audio.stop_music();
                                 self.audio.play_2048_music_celebration();
                                 self.music_started = false;
+
+                                // Sauvegarder le score si c'est un high score
+                                self.save_high_score_if_needed();
                             }
                             i += 2; // Skip both tiles
                         } else {
@@ -263,6 +277,9 @@ impl Game2048 {
                                 self.audio.stop_music();
                                 self.audio.play_2048_music_celebration();
                                 self.music_started = false;
+
+                                // Sauvegarder le score si c'est un high score
+                                self.save_high_score_if_needed();
                             }
                             i += 2; // Skip both tiles
                         } else {
@@ -312,6 +329,9 @@ impl Game2048 {
                                 self.audio.stop_music();
                                 self.audio.play_2048_music_celebration();
                                 self.music_started = false;
+
+                                // Sauvegarder le score si c'est un high score
+                                self.save_high_score_if_needed();
                             }
                             i += 2; // Skip both tiles
                         } else {
