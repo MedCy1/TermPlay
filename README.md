@@ -15,7 +15,7 @@ A beautiful collection of **terminal mini-games** built with Rust, featuring mod
 
 ### 🐍 Snake Game  
 
-![Snake Game](docs/snake.png.png)
+![Snake Game](docs/snake.png)
 
 ### 🧩 Tetris Game
 
