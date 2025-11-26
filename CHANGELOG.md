@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.7.1] - 2025-11-26
+
+- feat: add system dependencies for cargo-dist in Cargo.toml (a4753a0)
+
 ## [1.7.0] - 2025-11-26
 
 - fix: update author name and contact information in project files (a31f26e)

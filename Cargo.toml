@@ -1,6 +1,6 @@
 [package]
 name = "termplay"
-version = "1.7.0"
+version = "1.7.1"
 edition = "2021"
 authors = ["MedCy1 <support@zer0dev.me>"]
 description = "A collection of stylish terminal mini-games"
