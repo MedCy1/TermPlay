@@ -5,7 +5,8 @@ A beautiful collection of **terminal mini-games** built with Rust, featuring mod
 [![Rust)](https://img.shields.io/badge/Rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
 [![Cross Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)](https://github.com/MedCy1/TermPlay)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](https://img.shields.io/badge/version-1.3.0-green.svg)](https://github.com/MedCy1/TermPlay/releases)
+[![Version](https://img.shields.io/github/v/release/MedCy1/TermPlay)](https://github.com/MedCy1/TermPlay/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/MedCy1/TermPlay/total)](https://github.com/MedCy1/TermPlay/releases)
 
 ## 📸 Screenshots
 
@@ -32,7 +33,8 @@ A beautiful collection of **terminal mini-games** built with Rust, featuring mod
 - 🏗️ **Modular Architecture** - Easy to extend with new games
 - 🎵 **Rich Audio System** - Sound effects and dynamic music for immersive gameplay
 - ⚙️ **Configurable Settings** - Audio controls and game preferences
-- 📦 **Easy Installation** - Simple scripts for building and installing
+- 📦 **Easy Installation** - Professional installers for all platforms
+- 🔄 **Auto-Update** - Built-in update system to stay current
 
 ## 🕹️ Available Games
 
@@ -103,7 +105,36 @@ Cellular automaton simulation and visualization
 
 ## 🚀 Installation
 
-### From Source
+### 📦 Pre-built Installers (Recommended)
+
+#### Linux / macOS
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/MedCy1/TermPlay/releases/latest/download/termplay-installer.sh | sh
+```
+
+#### Windows (PowerShell)
+```powershell
+irm https://github.com/MedCy1/TermPlay/releases/latest/download/termplay-installer.ps1 | iex
+```
+
+#### macOS (Homebrew)
+```bash
+brew install MedCy1/tap/termplay
+```
+
+#### Windows (MSI Installer)
+Download the `.msi` installer from the [latest release](https://github.com/MedCy1/TermPlay/releases/latest)
+
+### 📥 Manual Download
+
+Download pre-built binaries for your platform from [GitHub Releases](https://github.com/MedCy1/TermPlay/releases/latest):
+- `termplay-x86_64-unknown-linux-gnu.tar.xz` - Linux (Intel/AMD)
+- `termplay-aarch64-unknown-linux-gnu.tar.xz` - Linux (ARM64)
+- `termplay-x86_64-pc-windows-msvc.zip` - Windows
+- `termplay-x86_64-apple-darwin.tar.xz` - macOS (Intel)
+- `termplay-aarch64-apple-darwin.tar.xz` - macOS (Apple Silicon)
+
+### 🔧 From Source
 
 ```bash
 git clone https://github.com/MedCy1/TermPlay.git
@@ -111,31 +142,26 @@ cd TermPlay
 cargo build --release
 ```
 
-### Using Install Script
-
-```bash
-# Make install script executable and run
-chmod +x scripts/install.sh
-./scripts/install.sh
-```
-
-### Quick Start
+### 🎮 Quick Start
 
 ```bash
 # Launch the main menu
-./target/release/termplay
+termplay
 
-# Or play a specific game directly
-./target/release/termplay game snake
-./target/release/termplay game tetris
-./target/release/termplay game pong
-./target/release/termplay game 2048
-./target/release/termplay game minesweeper
-./target/release/termplay game breakout
-./target/release/termplay game gameoflife
+# Play a specific game directly
+termplay game snake
+termplay game tetris
+termplay game pong
+termplay game 2048
+termplay game minesweeper
+termplay game breakout
+termplay game gameoflife
 
 # List all available games
-./target/release/termplay list
+termplay list
+
+# Check for updates
+termplay update
 ```
 
 ## 🎮 How to Play
@@ -337,7 +363,9 @@ cargo build --release --target aarch64-unknown-linux-gnu
 
 ### 🚧 In Progress / Planned
 
-- [ ] **High Scores** - Persistent leaderboards for each game
+- [x] **High Scores** - Persistent leaderboards for each game ✅
+- [x] **Auto-Update System** - Built-in update mechanism ✅
+- [x] **Professional Distribution** - Multi-platform installers (MSI, shell, PowerShell) ✅
 - [ ] **Themes** - Customizable color schemes and visual styles
 - [ ] **Game Replays** - Record and playback game sessions
 - [ ] **Advanced Settings** - Per-game configuration options
