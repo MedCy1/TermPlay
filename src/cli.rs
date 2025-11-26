@@ -18,4 +18,9 @@ pub enum Commands {
     },
     #[command(about = "List all available games")]
     List,
+    #[command(about = "Check for updates and install the latest version")]
+    Update {
+        #[arg(long, help = "Only check for updates without installing")]
+        check_only: bool,
+    },
 }

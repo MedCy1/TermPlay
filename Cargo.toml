@@ -2,9 +2,19 @@
 name = "termplay"
 version = "1.6.0"
 edition = "2021"
-authors = ["mederick <mederick@example.com>"]
+authors = ["mederick <support@ser0dev.me>"]
 description = "A collection of stylish terminal mini-games"
 license = "Apache-2.0"
+repository = "https://github.com/MedCy1/TermPlay"
+homepage = "https://github.com/MedCy1/TermPlay"
+keywords = ["terminal", "games", "tui", "retro"]
+categories = ["command-line-utilities", "games"]
+
+[package.metadata.wix]
+upgrade-guid = "4F8E5663-41F1-4ED9-B1D4-8B524A684408"
+path-guid = "01066322-C94D-4929-97DE-0AA6B1819557"
+license = false
+eula = false
 
 [[bin]]
 name = "termplay"
@@ -20,6 +30,17 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 dirs = "5.0"
 chrono = { version = "0.4", features = ["serde"] }
+axoupdater = { version = "0.9", default-features = false, features = ["github_releases"], optional = true }
+tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[features]
+default = ["self-update"]
+self-update = ["axoupdater", "tokio"]
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
