@@ -16,6 +16,11 @@ path-guid = "01066322-C94D-4929-97DE-0AA6B1819557"
 license = false
 eula = false
 
+# System dependencies for cargo-dist
+[package.metadata.dist.dependencies.apt]
+libasound2-dev = "*"
+pkg-config = "*"
+
 [[bin]]
 name = "termplay"
 path = "src/main.rs"
