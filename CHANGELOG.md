@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.7.0] - 2025-11-26
+
+- fix: update author name and contact information in project files (a31f26e)
+- feat: enhance terminal mini-games package with self-update feature and metadata (cfb76a6)
+- fix: correct image path for Snake Game in README and add missing image file (c0facfe)
+- style: format code for better readability in menu.rs (d06a322)
+- fix: sort games alphabetically in all menus for consistent order (efe2c7f)
+- feat: add reload method to refresh high scores from disk (25b63b6)
+- feat: add clear scores option in leaderboard with confirmation (0e0225d)
+- feat: load best score from file and save high score when achieved in 2048 game (97bd98b)
+
 ## [1.6.0] - 2025-11-19
 
 - fix: update release script permissions to make it executable (4dfa0cc)
