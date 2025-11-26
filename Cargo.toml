@@ -2,7 +2,7 @@
 name = "termplay"
 version = "1.6.0"
 edition = "2021"
-authors = ["mederick <support@ser0dev.me>"]
+authors = ["MedCy1 <support@zer0dev.me>"]
 description = "A collection of stylish terminal mini-games"
 license = "Apache-2.0"
 repository = "https://github.com/MedCy1/TermPlay"

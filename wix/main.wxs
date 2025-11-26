@@ -62,7 +62,7 @@
         Id='*'
         Name='termplay'
         UpgradeCode='4F8E5663-41F1-4ED9-B1D4-8B524A684408'
-        Manufacturer='mederick'
+        Manufacturer='MedCy1'
         Language='1033'
         Codepage='1252'
         Version='$(var.Version)'>
@@ -70,7 +70,7 @@
         <Package Id='*'
             Keywords='Installer'
             Description='A collection of stylish terminal mini-games'
-            Manufacturer='mederick'
+            Manufacturer='MedCy1'
             InstallerVersion='450'
             Languages='1033'
             Compressed='yes'

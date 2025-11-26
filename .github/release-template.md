@@ -100,7 +100,7 @@ termplay --audio-test
 
 - 🐛 **Bugs**: [Open an issue](https://github.com/MedCy1/TermPlay/issues)
 - 💡 **Suggestions**: [Discussions](https://github.com/MedCy1/TermPlay/discussions)
-- 📧 **Contact**: mederick.roge@gmail.com
+- 📧 **Contact**: support@zer0dev.me
 
 ## 🙏 Acknowledgements
 
