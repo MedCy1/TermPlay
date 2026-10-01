@@ -21,6 +21,9 @@ fn transition<B: Backend, F: FnMut(&mut ratatui::Frame)>(
     mut draw: F,
     fade_in: bool,
 ) -> std::io::Result<()> {
+    if !crate::engine::fx::fx_enabled() {
+        return Ok(());
+    }
     let start = Instant::now();
     loop {
         let p = (start.elapsed().as_secs_f32() / TRANSITION.as_secs_f32()).min(1.0);
@@ -29,6 +32,7 @@ fn transition<B: Backend, F: FnMut(&mut ratatui::Frame)>(
             draw(f);
             let area = f.area();
             crate::engine::fx::fade_to_black(f.buffer_mut(), area, t);
+            crate::engine::fx::finish(f.buffer_mut());
         })?;
         while event::poll(Duration::ZERO)? {
             event::read()?;
@@ -94,7 +98,10 @@ impl App {
         let mut last_tick = Instant::now();
 
         loop {
-            terminal.draw(|f| menu.draw(f))?;
+            terminal.draw(|f| {
+                menu.draw(f);
+                crate::engine::fx::finish(f.buffer_mut());
+            })?;
 
             let timeout = Duration::from_millis(100)
                 .checked_sub(last_tick.elapsed())
@@ -195,7 +202,10 @@ impl App {
         let mut last_frame = Instant::now();
 
         loop {
-            terminal.draw(|f| game.draw(f))?;
+            terminal.draw(|f| {
+                game.draw(f);
+                crate::engine::fx::finish(f.buffer_mut());
+            })?;
 
             let tick_rate = game.tick_rate(); // Obtenir le tick rate dynamique
             let mut timeout = tick_rate

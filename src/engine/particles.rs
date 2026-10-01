@@ -41,6 +41,9 @@ impl Particles {
     /// Comme `burst`, avec une poussée vers le haut (`lift`, cellules/s).
     #[allow(clippy::too_many_arguments)]
     pub fn spray(&mut self, x: f32, y: f32, n: usize, speed: f32, from: Rgb, to: Rgb, lift: f32) {
+        if !super::fx::fx_enabled() {
+            return;
+        }
         let mut rng = rand::rng();
         for _ in 0..n {
             if self.pool.len() >= self.cap {

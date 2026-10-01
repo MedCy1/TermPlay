@@ -78,6 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Application panic: {panic_info}");
     }));
     let cli = Cli::parse();
+    engine::fx::init(cli.no_fx, cli.no_color);
     let mut app = App::new();
 
     match cli.command {

@@ -1,7 +1,107 @@
 use rand::Rng;
 use ratatui::{buffer::Buffer, layout::Rect, style::Color, style::Style};
 
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+
 pub type Rgb = (u8, u8, u8);
+
+/// Capacité couleur du terminal, résolue une fois au démarrage (`init`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ColorMode {
+    True,
+    Palette256,
+    Mono,
+}
+
+static MODE: AtomicU8 = AtomicU8::new(0);
+static FX_ON: AtomicBool = AtomicBool::new(true);
+
+/// Pure (testable): (mode, effets actifs) selon flags et environnement.
+pub fn detect(
+    no_fx: bool,
+    no_color: bool,
+    no_color_env: Option<&str>,
+    colorterm: Option<&str>,
+    windows: bool,
+) -> (ColorMode, bool) {
+    let mono = no_color || no_color_env.is_some_and(|v| !v.is_empty());
+    let truecolor = colorterm.is_some_and(|v| v == "truecolor" || v == "24bit");
+    // ponytail: Windows Terminal ne définit pas COLORTERM mais gère le 24 bits
+    let mode = if mono {
+        ColorMode::Mono
+    } else if truecolor || windows {
+        ColorMode::True
+    } else {
+        ColorMode::Palette256
+    };
+    (mode, !no_fx && mode != ColorMode::Mono)
+}
+
+pub fn init(no_fx: bool, no_color: bool) {
+    let (mode, fx) = detect(
+        no_fx,
+        no_color,
+        std::env::var("NO_COLOR").ok().as_deref(),
+        std::env::var("COLORTERM").ok().as_deref(),
+        cfg!(windows),
+    );
+    MODE.store(mode as u8, Ordering::Relaxed);
+    FX_ON.store(fx, Ordering::Relaxed);
+}
+
+pub fn color_mode() -> ColorMode {
+    match MODE.load(Ordering::Relaxed) {
+        0 => ColorMode::True,
+        1 => ColorMode::Palette256,
+        _ => ColorMode::Mono,
+    }
+}
+
+/// Particules, shake, fondus.
+pub fn fx_enabled() -> bool {
+    FX_ON.load(Ordering::Relaxed)
+}
+
+/// Lueurs: demandent du 24 bits (les dégradés subtils bandent en 256 couleurs).
+fn glow_enabled() -> bool {
+    fx_enabled() && color_mode() == ColorMode::True
+}
+
+/// Couleur RGB → indice xterm-256 le plus proche (cube 6×6×6 ou rampe de gris).
+pub fn to_256((r, g, b): Rgb) -> u8 {
+    const L: [i32; 6] = [0, 95, 135, 175, 215, 255];
+    let near = |v: u8| (0..6).min_by_key(|&i| (L[i] - v as i32).abs()).unwrap_or(0);
+    let (qr, qg, qb) = (near(r), near(g), near(b));
+    let dist = |a: (i32, i32, i32)| {
+        (a.0 - r as i32).pow(2) + (a.1 - g as i32).pow(2) + (a.2 - b as i32).pow(2)
+    };
+    let cube_d = dist((L[qr], L[qg], L[qb]));
+    let avg = (r as i32 + g as i32 + b as i32) / 3;
+    let gi = ((avg - 8 + 5) / 10).clamp(0, 23);
+    let gray = 8 + 10 * gi;
+    if dist((gray, gray, gray)) < cube_d {
+        232 + gi as u8
+    } else {
+        (16 + 36 * qr + 6 * qg + qb) as u8
+    }
+}
+
+/// À appeler sur le buffer fini de chaque frame: adapte les couleurs au terminal.
+pub fn finish(buf: &mut Buffer) {
+    let mode = color_mode();
+    if mode == ColorMode::True {
+        return;
+    }
+    let conv = |c: Color| match (mode, c) {
+        (ColorMode::Mono, _) => Color::Reset,
+        (_, Color::Rgb(r, g, b)) => Color::Indexed(to_256((r, g, b))),
+        _ => c,
+    };
+    for c in &mut buf.content {
+        c.fg = conv(c.fg);
+        c.bg = conv(c.bg);
+    }
+}
 
 pub fn lerp(a: Rgb, b: Rgb, t: f32) -> Rgb {
     let t = t.clamp(0.0, 1.0);
@@ -64,6 +164,9 @@ pub fn put_bg(buf: &mut Buffer, x: i32, y: i32, ch: char, fg: Rgb, bg: Rgb, bold
 
 /// Lueur: éclaircit le fond autour de (cx, cy). Cellules ~2x plus hautes que larges → x compressé.
 pub fn glow(buf: &mut Buffer, cx: i32, cy: i32, radius: i32, c: Rgb, intensity: f32) {
+    if !glow_enabled() {
+        return;
+    }
     let r = radius as f32;
     for dy in -radius..=radius {
         for dx in -2 * radius..=2 * radius {
@@ -81,6 +184,9 @@ pub fn glow(buf: &mut Buffer, cx: i32, cy: i32, radius: i32, c: Rgb, intensity: 
 
 /// Fondu vers le noir (t: 0 = rien, 1 = noir) sur toute une zone.
 pub fn fade_to_black(buf: &mut Buffer, area: Rect, t: f32) {
+    if !fx_enabled() {
+        return;
+    }
     for y in area.top()..area.bottom() {
         for x in area.left()..area.right() {
             if let Some(c) = buf.cell_mut((x, y)) {
@@ -100,6 +206,9 @@ pub struct Shake {
 
 impl Shake {
     pub fn kick(&mut self, amp: f32) {
+        if !fx_enabled() {
+            return;
+        }
         self.amp = self.amp.max(amp);
     }
 
@@ -127,6 +236,45 @@ impl Shake {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detects_color_support() {
+        use ColorMode::*;
+        assert_eq!(
+            detect(false, false, None, Some("truecolor"), false),
+            (True, true)
+        );
+        assert_eq!(
+            detect(false, false, None, Some("24bit"), false),
+            (True, true)
+        );
+        assert_eq!(detect(false, false, None, None, false), (Palette256, true));
+        assert_eq!(detect(false, false, None, None, true), (True, true));
+        assert_eq!(
+            detect(false, false, Some("1"), Some("truecolor"), false),
+            (Mono, false)
+        );
+        assert_eq!(
+            detect(false, false, Some(""), Some("truecolor"), false),
+            (True, true)
+        ); // NO_COLOR vide ignoré
+        assert_eq!(
+            detect(false, true, None, Some("truecolor"), false),
+            (Mono, false)
+        );
+        assert_eq!(
+            detect(true, false, None, Some("truecolor"), false),
+            (True, false)
+        );
+    }
+
+    #[test]
+    fn quantizes_to_xterm_256() {
+        assert_eq!(to_256((0, 0, 0)), 16);
+        assert_eq!(to_256((255, 255, 255)), 231);
+        assert_eq!(to_256((255, 0, 0)), 196);
+        assert_eq!(to_256((128, 128, 128)), 244); // rampe de gris
+    }
 
     #[test]
     fn lerp_and_shake() {
