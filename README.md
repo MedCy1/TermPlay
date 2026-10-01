@@ -2,7 +2,7 @@
 
 A beautiful collection of **terminal mini-games** built with Rust, featuring modern graphics and smooth gameplay right in your terminal.
 
-[![Rust)](https://img.shields.io/badge/Rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
+[![Rust)](https://img.shields.io/badge/Rust-1.88%2B-orange.svg)](https://www.rust-lang.org/)
 [![Cross Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)](https://github.com/MedCy1/TermPlay)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Version](https://img.shields.io/github/v/release/MedCy1/TermPlay)](https://github.com/MedCy1/TermPlay/releases/latest)
@@ -24,7 +24,10 @@ A beautiful collection of **terminal mini-games** built with Rust, featuring mod
 
 ## ✨ Features
 
-- 🎨 **Beautiful UI** - Modern terminal graphics with RGB colors and smooth animations
+- 🎨 **Beautiful UI** - 24-bit RGB gradients, glow and smooth 60 fps animations
+- ✨ **Juicy Game Feel** - Particles, screen shake and fades on every impact (see [Visual Effects](#-visual-effects))
+- ⣿ **High-Fidelity Rendering** - Braille sub-cell canvas for smooth balls and motion trails
+- 🌈 **Terminal-Friendly** - Honors `NO_COLOR`, falls back to 256 colors, and can switch effects off with `--no-fx`
 - 🎮 **Classic Games** - Faithful recreations of beloved retro games
 - 🚀 **High Performance** - Built in Rust for speed and reliability
 - 🖥️ **Cross Platform** - Works on Windows, macOS, and Linux
@@ -35,6 +38,34 @@ A beautiful collection of **terminal mini-games** built with Rust, featuring mod
 - ⚙️ **Configurable Settings** - Audio controls and game preferences
 - 📦 **Easy Installation** - Professional installers for all platforms
 - 🔄 **Auto-Update** - Built-in update system to stay current
+
+## ✨ Visual Effects
+
+TermPlay ships a small shared rendering engine (`src/engine/`) that every game builds on:
+
+- **Particle system** - Fixed-capacity pool (no allocation while playing) with lifetime, velocity, gravity and RGB colour gradients. Debris glyphs: `*` `·` `+` `×` `▀` `▄`.
+- **Braille canvas** - Each terminal cell is a 2×4 grid of dots (`U+2800`–`U+28FF`), so the Breakout and Pong balls move smoothly and leave a fading motion trail. Positions are interpolated between logic ticks, so physics stay independent of the display rate.
+- **Screen shake, glow and fades** - Short exponential-decay shakes on heavy impacts, soft light around active pieces, fade-to-black on game over and between the menu and games.
+- **60 fps animation loop** - Games opt in with `frame_time()` / `animate(dt)`; the logic tick rate is unchanged.
+
+| Game | Highlights |
+| --- | --- |
+| Snake | Gradient body, pulsing food glow, eat and crash bursts |
+| Tetris | Tetromino glow, ghost piece, line-clear flash, shake scaled to lines cleared |
+| Pong | Neon borders that flash on impact, Braille trail that lengthens with speed, goal bursts |
+| Breakout | Braille ball trail, glowing paddle, bricks that burst in their own colour |
+| 2048 | Sliding tiles, raised rounded tiles, merge pop with sparks and floating `+N` |
+| Minesweeper | Wave-shaped auto-reveal, flag sparks, explosion, victory confetti |
+| Game of Life | Cell-age heatmap (newborn → stable → ancient) and fading traces |
+
+### Terminal compatibility
+
+| Environment | Behaviour |
+| --- | --- |
+| `COLORTERM=truecolor` or `24bit` (Windows is assumed truecolor) | Full effects |
+| No truecolor | Colours are quantised to the xterm 256-colour palette and glows are turned off |
+| `NO_COLOR` set to a non-empty value, or `--no-color` | Colours stripped, effects off |
+| `--no-fx` | Particles, screen shake, glow and fades off; colours kept |
 
 ## 🕹️ Available Games
 
@@ -142,6 +173,8 @@ cd TermPlay
 cargo build --release
 ```
 
+Requires Rust 1.88 or newer.
+
 ### 🎮 Quick Start
 
 ```bash
@@ -160,9 +193,27 @@ termplay game gameoflife
 # List all available games
 termplay list
 
+# Tone down the rendering for slower or colourless terminals
+termplay --no-fx game tetris      # no particles, screen shake, glow or fades
+termplay --no-color               # no colours at all (same as NO_COLOR=1)
+
 # Check for updates
 termplay update
 ```
+
+Game names are case-insensitive (`termplay game breakout`, `termplay game "Game of Life"` and `termplay game gameoflife` all work).
+
+### ⚙️ Command-Line Options
+
+| Option | Description |
+| --- | --- |
+| `--no-fx` | Disable particles, screen shake, glow and fade transitions |
+| `--no-color` | Disable all colours (also honoured through the `NO_COLOR` environment variable) |
+| `-h`, `--help` | Show help |
+| `-V`, `--version` | Show the version |
+
+Both flags are global and work with every subcommand.
+
 
 ## 🎮 How to Play
 
@@ -244,6 +295,7 @@ termplay update
 - **Dynamic Registration** - Games are automatically registered and discoverable
 - **Responsive Rendering** - Games adapt to terminal dimensions
 - **Event-Driven** - Efficient input handling with configurable tick rates
+- **Shared Rendering Engine** - `src/engine/` provides particles, Braille canvas, glow, shake and fades to all games
 - **Audio System** - Centralized audio management with per-game music and sound effects
 - **Configuration Management** - Persistent settings with JSON-based configuration files
 
@@ -252,7 +304,8 @@ termplay update
 - **Optimized Rendering** - Only redraws changed areas
 - **Memory Efficient** - Zero-allocation hot paths where possible
 - **Low Latency** - Sub-50ms input response times
-- **Adaptive Refresh** - Games can control their own update frequency
+- **Adaptive Refresh** - Games can control their own update frequency, or opt in to a 60 fps render loop
+- **Draw Rate Floor** - At least 8 ms between frames so a held key cannot spin the CPU
 
 ## 🎯 Scoring Systems
 
@@ -301,17 +354,37 @@ termplay update
 
    ```rust
    impl Game for YourGame {
-       fn name(&self) -> &str { "your_game" }
-       fn description(&self) -> &str { "Your game description" }
        fn handle_key(&mut self, key: KeyEvent) -> GameAction { /* ... */ }
        fn update(&mut self) -> GameAction { /* ... */ }
        fn draw(&mut self, frame: &mut Frame) { /* ... */ }
-       fn tick_rate(&self) -> Duration { /* optional */ }
+       fn tick_rate(&self) -> Duration { /* optional: logic speed */ }
+       fn frame_time(&self) -> Option<Duration> { Some(Duration::from_millis(16)) } // optional: opt in to 60 fps
+       fn animate(&mut self, dt: Duration) { /* optional: advance particles, shake, ... */ }
    }
    ```
 
-3. Register in `src/games/mod.rs`
+3. Register in `src/games/mod.rs` (`register("Your Game", "description", ...)`)
 4. Your game automatically appears in the menu!
+
+Use `crate::engine::{particles::Particles, braille::Braille, fx}` for particles, sub-cell rendering, glow, shake and fades.
+
+### Recording Demo GIFs
+
+The demo scripts live in `scripts/vhs/` and are recorded with [VHS](https://github.com/charmbracelet/vhs):
+
+```bash
+make demos        # builds in release mode, then writes docs/{snake,pong,tetris,breakout,2048}.gif
+```
+
+### Quality Checks
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test
+```
+
+The CI also builds against the minimum supported Rust version (`rust-version` in `Cargo.toml`).
 
 ### Building for Different Platforms
 
