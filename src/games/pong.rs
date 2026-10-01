@@ -1,5 +1,10 @@
 use crate::audio::{AudioManager, SoundEffect};
 use crate::core::{Game, GameAction};
+use crate::engine::{
+    braille::Braille,
+    fx::{self, Shake},
+    particles::Particles,
+};
 use crate::highscores::{GameData, HighScoreManager, Score};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
@@ -127,6 +132,15 @@ pub struct PongGame {
     highscore_manager: HighScoreManager,
     start_time: std::time::Instant,
     score_saved: bool,
+
+    // Effets
+    particles: Particles,
+    shake: Shake,
+    trail: Braille,
+    prev_ball: (f32, f32), // position avant le dernier tick (interpolation)
+    last_stamp: (f32, f32),
+    since_tick: f32,
+    wall_flash: [(f32, f32); 2], // (intensité, x) du dernier rebond haut / bas
 }
 
 impl PongGame {
@@ -159,6 +173,14 @@ impl PongGame {
             highscore_manager: HighScoreManager::default(),
             start_time: std::time::Instant::now(),
             score_saved: false,
+
+            particles: Particles::new(256, 8.0),
+            shake: Shake::default(),
+            trail: Braille::new(width as u16, height as u16),
+            prev_ball: (width / 2.0, height / 2.0),
+            last_stamp: (width / 2.0, height / 2.0),
+            since_tick: 0.0,
+            wall_flash: [(0.0, 0.0); 2],
         }
     }
 
@@ -202,6 +224,8 @@ impl PongGame {
     }
 
     fn update_ball(&mut self) {
+        self.prev_ball = (self.ball.position.x, self.ball.position.y);
+        self.since_tick = 0.0;
         // Sauvegarder l'ancienne position Y pour détecter les collisions avec les murs
         let old_y = self.ball.position.y;
 
@@ -217,6 +241,16 @@ impl PongGame {
             // Jouer le son de collision avec le mur seulement si on vient de toucher
             if old_y > 0.0 && old_y < self.height - 1.0 {
                 self.audio.play_sound(SoundEffect::PongWallHit);
+                let (i, y) = if self.ball.velocity.dy > 0.0 {
+                    (0, -1.0) // rebond sur le haut
+                } else {
+                    (1, self.height)
+                };
+                let x = self.ball.position.x + 0.5;
+                self.wall_flash[i] = (1.0, x);
+                let c = (120, 235, 255);
+                self.particles
+                    .burst(x, y, 4, 6.0, c, fx::lerp(c, (0, 0, 0), 0.8));
             }
         }
     }
@@ -272,6 +306,14 @@ impl PongGame {
             self.ball.velocity.dy += hit_pos * 0.3;
 
             self.ball.position.x = self.player1.position.x + 1.0;
+            self.particles.burst(
+                self.ball.position.x,
+                ball_y + 0.5,
+                6,
+                7.0,
+                (200, 230, 255),
+                (40, 80, 200),
+            );
             self.audio.play_sound(SoundEffect::PongPaddleHit);
         }
 
@@ -288,6 +330,14 @@ impl PongGame {
             self.ball.velocity.dy += hit_pos * 0.3;
 
             self.ball.position.x = self.player2.position.x - 1.0;
+            self.particles.burst(
+                self.ball.position.x + 1.0,
+                ball_y + 0.5,
+                6,
+                7.0,
+                (255, 220, 200),
+                (200, 50, 40),
+            );
             self.audio.play_sound(SoundEffect::PongPaddleHit);
         }
     }
@@ -296,6 +346,7 @@ impl PongGame {
         // Joueur 1 marque (balle sort à droite)
         if self.ball.position.x >= self.width {
             self.score_player1 += 1;
+            self.goal_burst(self.width - 1.0, (110, 170, 255));
             self.audio.play_sound(SoundEffect::PongScore);
             self.check_game_over();
             if self.state == PongState::Playing {
@@ -306,12 +357,24 @@ impl PongGame {
         // Joueur 2 marque (balle sort à gauche)
         if self.ball.position.x <= 0.0 {
             self.score_player2 += 1;
+            self.goal_burst(0.0, (255, 110, 100));
             self.audio.play_sound(SoundEffect::PongScore);
             self.check_game_over();
             if self.state == PongState::Playing {
                 self.reset_positions();
             }
         }
+    }
+
+    /// Gerbe de particules le long du bord marqué + secousse.
+    fn goal_burst(&mut self, x: f32, c: fx::Rgb) {
+        const N: usize = 6;
+        for i in 0..N {
+            let y = self.height * (i as f32 + 0.5) / N as f32;
+            self.particles
+                .burst(x, y, 8, 9.0, c, fx::lerp(c, (0, 0, 0), 0.85));
+        }
+        self.shake.kick(1.5);
     }
 
     fn check_game_over(&mut self) {
@@ -480,6 +543,11 @@ impl Game for PongGame {
             self.update_ai();
             self.check_ball_collision();
             self.check_scoring();
+            // Téléportation (reset après un but): pas d'interpolation
+            let (px, py) = self.prev_ball;
+            if (self.ball.position.x - px).hypot(self.ball.position.y - py) > 6.0 {
+                self.prev_ball = (self.ball.position.x, self.ball.position.y);
+            }
         }
         GameAction::Continue
     }
@@ -490,6 +558,36 @@ impl Game for PongGame {
 
     fn tick_rate(&self) -> Duration {
         Duration::from_millis(25) // Très fluide et réactif
+    }
+
+    fn frame_time(&self) -> Option<Duration> {
+        Some(Duration::from_millis(16))
+    }
+
+    fn animate(&mut self, dt: Duration) {
+        let dt = dt.as_secs_f32().min(0.1);
+        self.particles.update(dt);
+        self.shake.update(dt);
+        for w in &mut self.wall_flash {
+            w.0 = (w.0 - dt / 0.25).max(0.0);
+        }
+        self.trail.resize(self.width as u16, self.height as u16);
+
+        // Balle interpolée entre deux ticks: affichage fluide, logique inchangée
+        self.since_tick += dt;
+        let a = (self.since_tick / self.tick_rate().as_secs_f32()).min(1.0);
+        let (px, py) = self.prev_ball;
+        let b = &self.ball.position;
+        let (x, y) = (px + (b.x - px) * a + 0.5, py + (b.y - py) * a + 0.5);
+        if (x - self.last_stamp.0).hypot(y - self.last_stamp.1) > 6.0 {
+            self.last_stamp = (x, y);
+        }
+        // Traînée plus longue quand l'échange s'accélère
+        let speed = self.ball.velocity.dx.hypot(self.ball.velocity.dy);
+        self.trail.decay(dt, 0.04 + 0.06 * speed);
+        self.trail
+            .line(self.last_stamp.0, self.last_stamp.1, x, y, 1.5);
+        self.last_stamp = (x, y);
     }
 }
 
@@ -659,106 +757,57 @@ fn draw_game_field(frame: &mut ratatui::Frame, area: Rect, game: &mut PongGame) 
     let start_x = inner_area.x + (inner_area.width.saturating_sub(game_width)) / 2;
     let start_y = inner_area.y + (inner_area.height.saturating_sub(game_height)) / 2;
 
-    let playing_area = Rect {
-        x: start_x,
-        y: start_y,
-        width: game_width,
-        height: game_height,
-    };
+    let (sx, sy) = game.shake.offset();
+    let ox = start_x as i32 + sx;
+    let oy = start_y as i32 + sy;
+    let buf = frame.buffer_mut();
 
-    // Dessiner le terrain avec une grille subtile
-    for y in 0..game_height {
-        for x in 0..game_width {
-            let cell_x = playing_area.x + x;
-            let cell_y = playing_area.y + y;
-
-            if cell_x < playing_area.x + playing_area.width
-                && cell_y < playing_area.y + playing_area.height
-            {
-                let cell_area = Rect {
-                    x: cell_x,
-                    y: cell_y,
-                    width: 1,
-                    height: 1,
-                };
-
-                // Ligne centrale en pointillés
-                let symbol = if x == (field_width as u16 / 2) && y % 3 == 0 {
-                    "┃"
-                } else {
-                    " "
-                };
-
-                let color = if x == (field_width as u16 / 2) && y % 3 == 0 {
-                    Color::Rgb(100, 100, 100)
-                } else {
-                    Color::Rgb(20, 25, 30)
-                };
-
-                let cell = Paragraph::new(symbol).style(Style::default().fg(color));
-                frame.render_widget(cell, cell_area);
-            }
-        }
-    }
-
-    // Dessiner le paddle gauche (joueur 1)
-    for i in 0..(game.player1.height as u16) {
-        let paddle_x = playing_area.x + game.player1.position.x as u16;
-        let paddle_y = playing_area.y + (game.player1.position.y as u16) + i;
-
-        if paddle_x < playing_area.x + playing_area.width
-            && paddle_y < playing_area.y + playing_area.height
-        {
-            let paddle_area = Rect {
-                x: paddle_x,
-                y: paddle_y,
-                width: 1,
-                height: 1,
-            };
-
-            let paddle_cell =
-                Paragraph::new("█").style(Style::default().fg(Color::LightBlue).bold());
-            frame.render_widget(paddle_cell, paddle_area);
-        }
-    }
-
-    // Dessiner le paddle droit (joueur 2 ou IA)
-    for i in 0..(game.player2.height as u16) {
-        let paddle_x = playing_area.x + game.player2.position.x as u16;
-        let paddle_y = playing_area.y + (game.player2.position.y as u16) + i;
-
-        if paddle_x < playing_area.x + playing_area.width
-            && paddle_y < playing_area.y + playing_area.height
-        {
-            let paddle_area = Rect {
-                x: paddle_x,
-                y: paddle_y,
-                width: 1,
-                height: 1,
-            };
-
-            let paddle_cell =
-                Paragraph::new("█").style(Style::default().fg(Color::LightRed).bold());
-            frame.render_widget(paddle_cell, paddle_area);
-        }
-    }
-
-    // Dessiner la balle
-    let ball_x = playing_area.x + game.ball.position.x as u16;
-    let ball_y = playing_area.y + game.ball.position.y as u16;
-
-    if ball_x < playing_area.x + playing_area.width && ball_y < playing_area.y + playing_area.height
+    // Bordures néon haut/bas (collées au terrain), avec flash localisé au rebond
+    for (i, (row, ch)) in [(oy - 1, '▄'), (oy + game_height as i32, '▀')]
+        .into_iter()
+        .enumerate()
     {
-        let ball_area = Rect {
-            x: ball_x,
-            y: ball_y,
-            width: 1,
-            height: 1,
-        };
-
-        let ball_cell = Paragraph::new("◉").style(Style::default().fg(Color::Cyan).bold());
-        frame.render_widget(ball_cell, ball_area);
+        let (f, fxp) = game.wall_flash[i];
+        for x in 0..game_width as i32 {
+            let near = (1.0 - ((x as f32 - fxp).abs() / 8.0)).max(0.0) * f;
+            let c = fx::lerp((30, 110, 140), (200, 255, 255), near);
+            fx::put(buf, ox + x, row, ch, c);
+        }
     }
+
+    // Ligne centrale en pointillés
+    for y in (0..game_height as i32).step_by(2) {
+        fx::put(
+            buf,
+            ox + (game_width / 2) as i32,
+            oy + y,
+            '┃',
+            (40, 100, 120),
+        );
+    }
+
+    // Paddles avec lueur
+    for (p, glow, hi, lo) in [
+        (
+            &game.player1,
+            (80, 140, 255),
+            (190, 220, 255),
+            (70, 120, 230),
+        ),
+        (&game.player2, (255, 90, 80), (255, 200, 190), (230, 70, 60)),
+    ] {
+        let (px, py) = (ox + p.position.x as i32, oy + p.position.y as i32);
+        let h = p.height as i32;
+        fx::glow(buf, px, py + h / 2, 4, glow, 0.45);
+        for i in 0..h {
+            let t = (i as f32 / (h - 1).max(1) as f32 - 0.5).abs() * 2.0;
+            fx::put(buf, px, py + i, '█', fx::lerp(hi, lo, t));
+        }
+    }
+
+    // Balle (Braille) + traînée
+    game.trail.draw(buf, ox, oy, (140, 245, 255), (20, 70, 110));
+    game.particles.draw(buf, (ox, oy));
 
     // === FOOTER AVEC CONTRÔLES ===
     let controls = match game.mode {
