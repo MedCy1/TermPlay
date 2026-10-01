@@ -135,8 +135,8 @@ impl ConfigManager {
     fn load_config(path: &PathBuf) -> Result<GameConfig, Box<dyn std::error::Error>> {
         if path.exists() {
             let contents = fs::read_to_string(path)?;
-            let config: GameConfig = serde_json::from_str(&contents)?;
-            Ok(config)
+            // Fichier vide ou corrompu (écriture interrompue, autre instance): réglages par défaut
+            Ok(serde_json::from_str(&contents).unwrap_or_default())
         } else {
             // Créer la config par défaut si le fichier n'existe pas
             let default_config = GameConfig::default();
@@ -147,10 +147,10 @@ impl ConfigManager {
 
     fn save_config_to_file(
         config: &GameConfig,
-        path: &PathBuf,
+        path: &std::path::Path,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let json = serde_json::to_string_pretty(config)?;
-        fs::write(path, json)?;
+        write_atomic(path, json.as_bytes())?;
         Ok(())
     }
 
@@ -186,6 +186,22 @@ impl ConfigManager {
     }
 }
 
+/// Écrit via un fichier temporaire puis renomme: un lecteur voit l'ancien ou le nouveau
+/// contenu, jamais un fichier tronqué.
+pub fn write_atomic(path: &std::path::Path, data: &[u8]) -> std::io::Result<()> {
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(format!(
+        ".{}.{:?}.tmp",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let tmp = PathBuf::from(tmp);
+    fs::write(&tmp, data)?;
+    fs::rename(&tmp, path).inspect_err(|_| {
+        let _ = fs::remove_file(&tmp);
+    })
+}
+
 /// Dossier de configuration de l'utilisateur. Sous `cargo test`, un dossier temporaire par
 /// processus: les tests ne doivent jamais lire ni écrire le vrai profil (scores, réglages).
 pub fn base_config_dir() -> Option<PathBuf> {
@@ -218,6 +234,26 @@ mod tests {
         assert_eq!(c.visuals.fx_mode, FxMode::Full);
         assert_eq!(c.visuals.shake_percent, 100);
         assert!(c.gameplay.ghost_piece);
+    }
+
+    #[test]
+    fn atomic_write_replaces_content_and_leaves_no_temp_file() {
+        let dir = base_config_dir().unwrap().join("atomic");
+        fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("x.json");
+        write_atomic(&f, b"one").unwrap();
+        write_atomic(&f, b"two").unwrap();
+        assert_eq!(fs::read_to_string(&f).unwrap(), "two");
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn corrupt_config_falls_back_to_defaults() {
+        let f = base_config_dir().unwrap().join("corrupt.json");
+        fs::create_dir_all(f.parent().unwrap()).unwrap();
+        fs::write(&f, "").unwrap();
+        let c = ConfigManager::load_config(&f).unwrap();
+        assert_eq!(c.audio.master_volume, AudioConfig::default().master_volume);
     }
 
     #[test]

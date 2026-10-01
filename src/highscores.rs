@@ -167,7 +167,7 @@ impl HighScoreManager {
     /// Sauvegarde les scores sur disque
     fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
         let content = serde_json::to_string_pretty(&self.scores)?;
-        fs::write(&self.scores_file, content)?;
+        crate::config::write_atomic(&self.scores_file, content.as_bytes())?;
         Ok(())
     }
 
