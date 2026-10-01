@@ -1,5 +1,5 @@
 # Makefile for TermPlay
-.PHONY: help build test clean install dev lint fmt check release docker
+.PHONY: help build test clean install dev lint fmt check release docker demos
 
 # Variables
 BINARY_NAME := termplay
@@ -237,3 +237,11 @@ r: dev ## Shortcut for run
 c: clean ## Shortcut for clean
 l: lint ## Shortcut for lint
 f: fmt ## Shortcut for fmt
+
+demos: build ## Record the README demo GIFs into docs/ (requires https://github.com/charmbracelet/vhs)
+	@command -v vhs >/dev/null || { echo "$(RED)vhs not found - see https://github.com/charmbracelet/vhs$(NC)"; exit 1; }
+	@for tape in scripts/vhs/[a-z0-9]*.tape; do \
+		echo "$(CYAN)🎬 $$tape$(NC)"; \
+		vhs $$tape || exit 1; \
+	done
+	@echo "$(GREEN)✅ GIFs written to docs/$(NC)"
