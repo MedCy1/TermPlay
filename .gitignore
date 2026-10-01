@@ -21,3 +21,11 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# Local tooling artifacts
+.claude/
+.ignore
+.mcp.json
