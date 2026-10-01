@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.8.0] - 2026-10-01
+
+### Features
+
+- feat(engine): shared 60 fps visual engine (`src/engine/`) with opt-in `Game::frame_time` / `animate` hooks
+- feat: high-fidelity Braille sub-cell rendering with motion trails (Pong, Breakout)
+- feat: particle system with lifetime, gravity and RGB colour gradients, dynamic palettes in every game
+- feat: screen shake, glow and lighting effects
+- feat(menu): animated main menu at 60 fps: colour-wave TERMPLAY banner with glow, gliding selector with pulsing chevron, game preview cards (controls, best score) and subtle ambient particles (off with `--no-fx`)
+- feat: smooth fade transitions between the menu and games
+- feat: per-game effects: Snake gradient and food bursts, Tetris ghost piece and line-clear flash, Pong neon borders and goal bursts, Breakout glowing paddle and exploding bricks, 2048 sliding tiles and merge pops, Minesweeper wave reveal and explosions, Game of Life age heatmap
+
+### CLI & Accessibility
+
+- feat(cli): global `--no-fx` and `--no-color` flags
+- feat: honour the `NO_COLOR` convention
+- feat: automatic xterm-256 fallback when truecolor is unavailable
+- fix(games): game names are matched case-insensitively (`termplay game breakout`)
+
+### Performance & Robustness
+
+- perf(tetris): zero-allocation piece geometry and ghost piece
+- perf(gameoflife): draw cells straight into the buffer
+- perf(app): 8 ms floor between draws to prevent CPU spin
+- fix(tetris): clearing adjacent lines left a full row on the board
+- fix: Minesweeper and Game of Life panicked on terminals smaller than their grid
+- test: unit tests extended from 0 to 30 (2048 moves, Tetris lines, Minesweeper cascade, render smoke tests)
+- ci: declare `rust-version = "1.88"` and add an MSRV check job
+
+### Docs & Assets
+
+- docs: animated VHS demos reproducible through the deterministic `TERMPLAY_SEED` (`make demos`)
+- docs(readme): visual effects, terminal compatibility and CLI options
+
 ## [1.7.1] - 2025-11-26
 
 - feat: add system dependencies for cargo-dist in Cargo.toml (a4753a0)
