@@ -14,9 +14,9 @@ jobs:
   # Job de tests et linting
   test:
     name: Test and Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -46,9 +46,9 @@ jobs:
   # Vérifie que le projet compile avec la version minimale de Rust (`rust-version` de Cargo.toml)
   msrv:
     name: MSRV (1.88)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust 1.88
         uses: dtolnay/rust-toolchain@1.88.0
@@ -67,10 +67,10 @@ jobs:
   # Job de benchmark (optionnel)
   benchmark:
     name: Benchmark
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -89,9 +89,9 @@ jobs:
   # Job de sécurité
   security:
     name: Security Audit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
