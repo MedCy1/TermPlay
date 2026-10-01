@@ -238,10 +238,12 @@ c: clean ## Shortcut for clean
 l: lint ## Shortcut for lint
 f: fmt ## Shortcut for fmt
 
-demos: build ## Record the README demo GIFs into docs/ (requires https://github.com/charmbracelet/vhs)
+demos: build ## Record the README demo GIFs into docs/ (requires vhs and ffmpeg)
 	@command -v vhs >/dev/null || { echo "$(RED)vhs not found - see https://github.com/charmbracelet/vhs$(NC)"; exit 1; }
 	@for tape in scripts/vhs/[a-z0-9]*.tape; do \
 		echo "$(CYAN)🎬 $$tape$(NC)"; \
 		vhs $$tape || exit 1; \
+		out=$$(awk '/^Output/ {print $$2}' $$tape); \
+		ffmpeg -v error -y -i $$out -vf "fps=24,split[a][b];[a]palettegen=max_colors=96:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" $$out.tmp.gif && mv $$out.tmp.gif $$out || exit 1; \
 	done
 	@echo "$(GREEN)✅ GIFs written to docs/$(NC)"
