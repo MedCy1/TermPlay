@@ -1,5 +1,9 @@
 use crate::audio::{AudioManager, SoundEffect};
 use crate::core::{Game, GameAction};
+use crate::engine::{
+    fx::{self, Rgb, Shake},
+    particles::Particles,
+};
 use crate::highscores::{GameData, HighScoreManager, Score};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
@@ -57,7 +61,19 @@ pub struct MinesweeperGame {
     highscore_manager: HighScoreManager,
     start_time: std::time::Instant,
     score_saved: bool,
+
+    // Effets
+    particles: Particles,
+    shake: Shake,
+    time: f32,
+    show_at: [[f32; GRID_WIDTH]; GRID_HEIGHT], // instant d'apparition (onde de révélation)
+    reveal_origin: (usize, usize),
+    confetti: f32,      // durée restante de la pluie de confettis
+    origin: (u16, u16), // coin de la grille, mis à jour au draw
 }
+
+const CELL_W: u16 = 3;
+const WAVE_DELAY: f32 = 0.035; // secondes par cellule de distance
 
 impl MinesweeperGame {
     pub fn new() -> Self {
@@ -77,7 +93,29 @@ impl MinesweeperGame {
             highscore_manager: HighScoreManager::default(),
             start_time: std::time::Instant::now(),
             score_saved: false,
+
+            particles: Particles::new(256, 6.0),
+            shake: Shake::default(),
+            time: 0.0,
+            show_at: [[0.0; GRID_WIDTH]; GRID_HEIGHT],
+            reveal_origin: (0, 0),
+            confetti: 0.0,
+            origin: (0, 0),
         }
+    }
+
+    /// Centre terminal d'une cellule.
+    fn cell_center(&self, x: usize, y: usize) -> (f32, f32) {
+        (
+            (self.origin.0 + x as u16 * CELL_W) as f32 + 1.5,
+            (self.origin.1 + y as u16) as f32 + 0.5,
+        )
+    }
+
+    /// Instant d'apparition d'une cellule selon sa distance au point de départ.
+    fn wave_time(&self, x: usize, y: usize) -> f32 {
+        let (ox, oy) = self.reveal_origin;
+        self.time + (x.abs_diff(ox) as f32).hypot(y.abs_diff(oy) as f32) * WAVE_DELAY
     }
 
     fn generate_mines(&mut self, first_click_x: usize, first_click_y: usize) {
@@ -169,6 +207,7 @@ impl MinesweeperGame {
     }
 
     fn reveal_cell(&mut self, x: usize, y: usize) {
+        self.reveal_origin = (x, y);
         self.reveal_cell_internal(x, y, true);
     }
 
@@ -187,6 +226,7 @@ impl MinesweeperGame {
 
         self.grid[y][x].state = CellState::Revealed;
         self.cells_revealed += 1;
+        self.show_at[y][x] = self.wave_time(x, y);
 
         let cell = &self.grid[y][x];
 
@@ -195,10 +235,21 @@ impl MinesweeperGame {
             // Son d'explosion
             self.audio.play_sound(SoundEffect::MinesweeperMineHit);
             // Révéler toutes les mines
-            for row in &mut self.grid {
-                for cell in row {
-                    if cell.is_mine {
-                        cell.state = CellState::Revealed;
+            self.shake.kick(2.5);
+            let (cx, cy) = self.cell_center(x, y);
+            self.particles
+                .burst(cx, cy, 50, 14.0, (255, 200, 60), (160, 20, 0));
+            self.particles
+                .burst(cx, cy, 30, 9.0, (150, 150, 150), (30, 30, 30));
+            self.particles
+                .spray(cx, cy, 20, 6.0, (255, 90, 30), (60, 60, 60), 6.0);
+            for my in 0..GRID_HEIGHT {
+                for mx in 0..GRID_WIDTH {
+                    if self.grid[my][mx].is_mine {
+                        if self.grid[my][mx].state != CellState::Revealed {
+                            self.show_at[my][mx] = self.wave_time(mx, my) + 0.15;
+                        }
+                        self.grid[my][mx].state = CellState::Revealed;
                     }
                 }
             }
@@ -234,6 +285,7 @@ impl MinesweeperGame {
         // Vérifier la victoire
         if self.cells_revealed == (GRID_WIDTH * GRID_HEIGHT - MINE_COUNT) {
             self.won = true;
+            self.confetti = 2.5;
             // Son de victoire
             self.audio.play_sound(SoundEffect::MinesweeperVictory);
             self.audio.stop_music();
@@ -256,6 +308,9 @@ impl MinesweeperGame {
                 if self.flags_used < MINE_COUNT {
                     cell.state = CellState::Flagged;
                     self.flags_used += 1;
+                    let (cx, cy) = self.cell_center(x, y);
+                    self.particles
+                        .burst(cx, cy, 8, 6.0, (255, 220, 60), (255, 90, 20));
                     // Son de placement de drapeau
                     self.audio.play_sound(SoundEffect::MinesweeperFlag);
                 }
@@ -280,6 +335,8 @@ impl MinesweeperGame {
         self.flags_used = 0;
         self.cells_revealed = 0;
         self.score_saved = false;
+        self.show_at = [[0.0; GRID_WIDTH]; GRID_HEIGHT];
+        self.confetti = 0.0;
         self.start_time = std::time::Instant::now();
 
         self.audio.stop_music();
@@ -457,6 +514,34 @@ impl Game for MinesweeperGame {
         }
     }
 
+    fn frame_time(&self) -> Option<Duration> {
+        Some(Duration::from_millis(16))
+    }
+
+    fn animate(&mut self, dt: Duration) {
+        let dt = dt.as_secs_f32().min(0.1);
+        self.time += dt;
+        self.particles.update(dt);
+        self.shake.update(dt);
+        if self.confetti > 0.0 {
+            self.confetti -= dt;
+            // Confettis multicolores qui jaillissent vers le haut depuis le bas de la grille
+            let mut rng = rand::rng();
+            let x =
+                self.origin.0 as f32 + rng.random_range(0.0..(GRID_WIDTH as u16 * CELL_W) as f32);
+            let y = (self.origin.1 as usize + GRID_HEIGHT) as f32;
+            let c: Rgb = [
+                (255, 90, 90),
+                (255, 220, 70),
+                (90, 230, 120),
+                (90, 170, 255),
+                (220, 110, 255),
+            ][rng.random_range(0..5)];
+            self.particles
+                .spray(x, y, 3, 6.0, c, fx::lerp(c, (0, 0, 0), 0.6), 14.0);
+        }
+    }
+
     fn update(&mut self) -> GameAction {
         self.start_music_if_needed();
         GameAction::Continue
@@ -471,7 +556,7 @@ impl Game for MinesweeperGame {
     }
 }
 
-fn draw_minesweeper_game(frame: &mut ratatui::Frame, game: &MinesweeperGame) {
+fn draw_minesweeper_game(frame: &mut ratatui::Frame, game: &mut MinesweeperGame) {
     let area = frame.area();
 
     // Layout principal
@@ -533,11 +618,21 @@ fn draw_minesweeper_game(frame: &mut ratatui::Frame, game: &MinesweeperGame) {
 
     let start_x = inner_area.x + (inner_area.width.saturating_sub(grid_width)) / 2;
     let start_y = inner_area.y + (inner_area.height.saturating_sub(grid_height)) / 2;
+    game.origin = (start_x, start_y);
+    let (sx, sy) = game.shake.offset();
+    let start_x =
+        (start_x as i32 + sx).clamp(0, area.width.saturating_sub(grid_width) as i32) as u16;
+    let start_y =
+        (start_y as i32 + sy).clamp(0, area.height.saturating_sub(grid_height) as i32) as u16;
 
     // Dessiner la grille
     for row in 0..GRID_HEIGHT {
         for col in 0..GRID_WIDTH {
-            let cell = &game.grid[row][col];
+            let mut cell = game.grid[row][col];
+            if game.time < game.show_at[row][col] {
+                cell.state = CellState::Hidden; // l'onde n'est pas encore arrivée
+            }
+            let cell = &cell;
 
             let cell_x = start_x + (col as u16 * cell_width);
             let cell_y = start_y + (row as u16 * cell_height);
@@ -566,6 +661,8 @@ fn draw_minesweeper_game(frame: &mut ratatui::Frame, game: &MinesweeperGame) {
             frame.render_widget(cell_widget, cell_area);
         }
     }
+
+    game.particles.draw(frame.buffer_mut(), (0, 0));
 
     // === FOOTER ===
     let instructions = if game.game_over || game.won {
