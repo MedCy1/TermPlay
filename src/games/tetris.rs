@@ -969,12 +969,19 @@ fn collapse(board: &mut Board, rows: &[usize]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // L'allocateur compteur est limité à Unix: sous Windows (CI, release) un allocateur global
+    // utilisant du TLS plante avec STATUS_ACCESS_VIOLATION dans tout le binaire de test.
+    #[cfg(unix)]
     use std::alloc::{GlobalAlloc, Layout, System};
+    #[cfg(unix)]
     use std::cell::Cell;
 
     /// Compte les allocations du thread courant (tests uniquement).
+    #[cfg(unix)]
     struct Counting;
+    #[cfg(unix)]
     thread_local!(static ALLOCS: Cell<usize> = const { Cell::new(0) });
+    #[cfg(unix)]
     unsafe impl GlobalAlloc for Counting {
         unsafe fn alloc(&self, l: Layout) -> *mut u8 {
             let _ = ALLOCS.try_with(|c| c.set(c.get() + 1));
@@ -984,6 +991,7 @@ mod tests {
             System.dealloc(p, l)
         }
     }
+    #[cfg(unix)]
     #[global_allocator]
     static A: Counting = Counting;
 
@@ -1099,6 +1107,7 @@ mod tests {
         assert!(g.get_blocks().iter().all(|k| k.y <= 18));
     }
 
+    #[cfg(unix)]
     #[test]
     fn ghost_and_collision_do_not_allocate() {
         let mut b = empty();
