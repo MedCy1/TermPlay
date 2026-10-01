@@ -1,5 +1,9 @@
 use crate::audio::{AudioManager, SoundEffect};
 use crate::core::{Game, GameAction};
+use crate::engine::{
+    fx::{self, Shake},
+    particles::Particles,
+};
 use crate::highscores::{GameData, HighScoreManager, Score};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
@@ -38,6 +42,11 @@ pub struct SnakeGame {
     highscore_manager: HighScoreManager,
     start_time: std::time::Instant,
     score_saved: bool,
+    particles: Particles,
+    shake: Shake,
+    time: f32,
+    fade: f32,
+    origin: (u16, u16), // coin du terrain (cellules terminal), mis à jour au draw
 }
 
 impl SnakeGame {
@@ -64,7 +73,20 @@ impl SnakeGame {
             highscore_manager: HighScoreManager::default(),
             start_time: std::time::Instant::now(),
             score_saved: false,
+            particles: Particles::new(256, 12.0),
+            shake: Shake::default(),
+            time: 0.0,
+            fade: 0.0,
+            origin: (0, 0),
         }
+    }
+
+    /// Centre terminal d'une cellule logique (2 caractères de large).
+    fn cell_center(&self, p: Position) -> (f32, f32) {
+        (
+            (self.origin.0 + p.x * 2) as f32 + 1.0,
+            (self.origin.1 + p.y) as f32 + 0.5,
+        )
     }
 
     fn generate_food(snake: &[Position], width: u16, height: u16) -> Position {
@@ -110,6 +132,10 @@ impl SnakeGame {
             // Arrêter la musique et jouer le son de game over
             self.audio.stop_music();
             self.audio.play_sound(SoundEffect::SnakeGameOver);
+            let (x, y) = self.cell_center(head);
+            self.particles
+                .burst(x, y, 40, 14.0, (255, 120, 60), (60, 0, 0));
+            self.shake.kick(2.0);
 
             // Sauvegarder le score si c'est un high score et pas encore sauvé
             self.save_high_score_if_needed();
@@ -122,6 +148,9 @@ impl SnakeGame {
         if new_head == self.food {
             self.score += 10;
             self.audio.play_sound(SoundEffect::SnakeEat);
+            let (x, y) = self.cell_center(new_head);
+            self.particles
+                .burst(x, y, 16, 9.0, (255, 230, 120), (200, 30, 30));
             self.food = Self::generate_food(&self.snake, self.width, self.height);
         } else {
             self.snake.pop();
@@ -263,6 +292,20 @@ impl Game for SnakeGame {
         draw_snake_game(frame, self);
     }
 
+    fn frame_time(&self) -> Option<Duration> {
+        Some(Duration::from_millis(16))
+    }
+
+    fn animate(&mut self, dt: Duration) {
+        let dt = dt.as_secs_f32().min(0.1);
+        self.time += dt;
+        self.particles.update(dt);
+        self.shake.update(dt);
+        if self.game_over {
+            self.fade = (self.fade + dt / 0.8).min(1.0);
+        }
+    }
+
     fn tick_rate(&self) -> Duration {
         // Vitesse de base: 300ms
         let base_speed: u64 = 300;
@@ -355,72 +398,69 @@ fn draw_snake_game(frame: &mut ratatui::Frame, app: &mut SnakeGame) {
         horizontal: 1,
     });
 
-    // Dessiner une grille de fond subtile pour mieux voir les cellules
-    let grid_width = game_width * 2; // Largeur totale en caractères
-    let grid_height = game_height;
+    app.origin = (inner_area.x, inner_area.y);
+    let (sx, sy) = app.shake.offset();
+    let ox = inner_area.x as i32 + sx;
+    let oy = inner_area.y as i32 + sy;
+    let buf = frame.buffer_mut();
 
-    for y in 0..grid_height {
-        for x in 0..(grid_width / 2) {
-            let cell_x = inner_area.x + (x * 2);
-            let cell_y = inner_area.y + y;
+    // Grille de fond subtile
+    for y in 0..game_height as i32 {
+        for x in 0..game_width as i32 {
+            fx::put(buf, ox + x * 2, oy + y, '░', (30, 35, 40));
+            fx::put(buf, ox + x * 2 + 1, oy + y, '░', (30, 35, 40));
+        }
+    }
 
-            if cell_x + 1 < inner_area.x + inner_area.width
-                && cell_y < inner_area.y + inner_area.height
-            {
-                let cell_area = Rect {
-                    x: cell_x,
-                    y: cell_y,
-                    width: 2,
-                    height: 1,
-                };
+    // Lueurs (fond), avant les entités
+    let pulse = 0.35 + 0.15 * (app.time * 6.0).sin();
+    let food = app.food;
+    if food.x < game_width && food.y < game_height {
+        fx::glow(
+            buf,
+            ox + food.x as i32 * 2 + 1,
+            oy + food.y as i32,
+            4,
+            (255, 60, 60),
+            pulse,
+        );
+    }
+    if !app.game_over {
+        let h = app.snake[0];
+        fx::glow(
+            buf,
+            ox + h.x as i32 * 2 + 1,
+            oy + h.y as i32,
+            5,
+            (80, 255, 120),
+            0.55,
+        );
+    }
 
-                let grid_cell =
-                    Paragraph::new("░░").style(Style::default().fg(Color::Rgb(30, 35, 40)));
-                frame.render_widget(grid_cell, cell_area);
+    // Nourriture
+    if food.x < game_width && food.y < game_height {
+        let c = fx::lerp((255, 60, 60), (255, 200, 120), pulse);
+        for dx in 0..2 {
+            fx::put(buf, ox + food.x as i32 * 2 + dx, oy + food.y as i32, '█', c);
+        }
+    }
+
+    // Serpent: dégradé lisse tête → queue
+    let len = app.snake.len().max(2) as f32 - 1.0;
+    for (i, seg) in app.snake.iter().enumerate() {
+        if seg.x < game_width && seg.y < game_height {
+            let c = fx::lerp((140, 255, 140), (20, 90, 70), i as f32 / len);
+            for dx in 0..2 {
+                fx::put(buf, ox + seg.x as i32 * 2 + dx, oy + seg.y as i32, '█', c);
             }
         }
     }
 
-    // Dessiner le serpent avec des cellules carrées (2 caractères de large)
-    for (i, segment) in app.snake.iter().enumerate() {
-        if segment.x < game_width && segment.y < game_height {
-            let cell_x = inner_area.x + (segment.x * 2); // 2 caractères par cellule
-            let cell_y = inner_area.y + segment.y;
+    app.particles.draw(buf, (sx, sy));
 
-            let cell_area = Rect {
-                x: cell_x,
-                y: cell_y,
-                width: 2, // Cellules de 2 caractères de large
-                height: 1,
-            };
-
-            // Couleurs dégradées pour un effet visuel
-            let (color, symbol) = if i == 0 {
-                (Color::Rgb(120, 255, 120), "██") // Tête verte claire
-            } else {
-                let intensity = 180 - (i * 10).min(100) as u8;
-                (Color::Rgb(50, intensity, 50), "██") // Corps dégradé
-            };
-
-            let snake_cell = Paragraph::new(symbol).style(Style::default().fg(color));
-            frame.render_widget(snake_cell, cell_area);
-        }
-    }
-
-    // Dessiner la nourriture avec des cellules carrées
-    if app.food.x < game_width && app.food.y < game_height {
-        let food_x = inner_area.x + (app.food.x * 2); // 2 caractères par cellule
-        let food_y = inner_area.y + app.food.y;
-
-        let food_area = Rect {
-            x: food_x,
-            y: food_y,
-            width: 2, // Cellules de 2 caractères de large
-            height: 1,
-        };
-
-        let food_cell = Paragraph::new("██").style(Style::default().fg(Color::Red).bold());
-        frame.render_widget(food_cell, food_area);
+    // Fondu du terrain au game over
+    if app.game_over {
+        fx::fade_to_black(buf, inner_area, app.fade * 0.7);
     }
 
     // === FOOTER ===
