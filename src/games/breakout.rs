@@ -610,9 +610,15 @@ impl Game for BreakoutGame {
         if (x - self.last_stamp.0).hypot(y - self.last_stamp.1) > 3.0 {
             self.last_stamp = (x, y);
         }
-        self.trail.decay(dt, 0.28);
-        self.trail
-            .line(self.last_stamp.0, self.last_stamp.1, x, y, 1.5);
+        if self.ball_stuck {
+            // Balle aimantée à la raquette: pas de traînée (elle tracerait un trait horizontal)
+            self.trail.decay(dt, 0.02);
+            self.trail.blob(x, y, 1.5);
+        } else {
+            self.trail.decay(dt, 0.28);
+            self.trail
+                .line(self.last_stamp.0, self.last_stamp.1, x, y, 1.5);
+        }
         self.last_stamp = (x, y);
     }
 }
