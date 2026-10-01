@@ -90,3 +90,44 @@ impl Default for GameRegistry {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossterm::event::{KeyCode, KeyEvent};
+    use ratatui::{backend::TestBackend, Terminal};
+    use std::time::Duration;
+
+    /// Chaque jeu doit pouvoir dessiner sur n'importe quelle taille sans paniquer.
+    /// Pas de game over ici: il écrirait dans le vrai fichier de high scores.
+    /// L'audio est silencieux sans périphérique (fallback de `AudioManager::default`).
+    #[test]
+    fn every_game_draws_on_tiny_and_large_terminals() {
+        let registry = GameRegistry::new();
+        let sizes = [
+            (1, 1),
+            (5, 5),
+            (12, 6),
+            (29, 14),
+            (40, 15),
+            (100, 30),
+            (250, 80),
+        ];
+        for info in registry.list_games() {
+            for (w, h) in sizes {
+                let mut game = registry.get_game(&info.name).expect("registered");
+                let mut term = Terminal::new(TestBackend::new(w, h)).unwrap();
+                for frame in 0..3 {
+                    term.draw(|f| game.draw(f))
+                        .unwrap_or_else(|e| panic!("{} {w}x{h}: {e}", info.name));
+                    game.animate(Duration::from_millis(16));
+                    if frame == 0 {
+                        // Pong démarre sur son menu: Entrée lance la partie
+                        game.handle_key(KeyEvent::from(KeyCode::Enter));
+                        game.update();
+                    }
+                }
+            }
+        }
+    }
+}

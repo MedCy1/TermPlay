@@ -643,6 +643,11 @@ fn draw_minesweeper_game(frame: &mut ratatui::Frame, game: &mut MinesweeperGame)
                 width: cell_width,
                 height: cell_height,
             };
+            // Terminal plus petit que la grille: ne rien dessiner hors de l'écran
+            let cell_area = cell_area.intersection(frame.area());
+            if cell_area.is_empty() {
+                continue;
+            }
 
             let cell_text = MinesweeperGame::get_cell_text(cell);
             let cell_color = MinesweeperGame::get_cell_color(cell);

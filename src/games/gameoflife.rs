@@ -840,6 +840,11 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
                 width: cell_width as u16,
                 height: cell_height as u16,
             };
+            // Terminal plus petit que la grille: ne rien dessiner hors de l'écran
+            let cell_area = cell_area.intersection(frame.area());
+            if cell_area.is_empty() {
+                continue;
+            }
 
             // Déterminer le contenu et le style de la cellule
             let (cell_content, cell_style) = if game.state == GameState::Editing
@@ -1005,6 +1010,11 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
             width: help_width,
             height: help_height,
         };
+        // Terminal trop petit: l'aide est tronquée, ou omise
+        let help_area = help_area.intersection(area);
+        if help_area.is_empty() {
+            return;
+        }
 
         let help_text = vec![
             Line::from(" Patterns:".yellow().bold()),
