@@ -162,14 +162,20 @@ impl App {
         terminal: &mut Terminal<B>,
     ) -> GameResult {
         let mut last_tick = Instant::now();
+        let mut last_frame = Instant::now();
 
         loop {
             terminal.draw(|f| game.draw(f))?;
 
             let tick_rate = game.tick_rate(); // Obtenir le tick rate dynamique
-            let timeout = tick_rate
+            let mut timeout = tick_rate
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
+            if let Some(ft) = game.frame_time() {
+                timeout = timeout.min(ft);
+                game.animate(last_frame.elapsed());
+                last_frame = Instant::now();
+            }
 
             if crossterm::event::poll(timeout)? {
                 if let Event::Key(key) = event::read()? {

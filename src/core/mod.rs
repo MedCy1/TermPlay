@@ -18,6 +18,12 @@ pub trait Game {
     fn tick_rate(&self) -> std::time::Duration {
         std::time::Duration::from_millis(250) // Valeur par défaut
     }
+    /// Opt-in: intervalle de rendu (ex: 16ms) pour les animations, indépendant du tick logique.
+    fn frame_time(&self) -> Option<std::time::Duration> {
+        None
+    }
+    /// Appelé à chaque frame si `frame_time` est Some; `dt` = temps réel écoulé.
+    fn animate(&mut self, _dt: std::time::Duration) {}
 }
 
 #[derive(Debug, Clone)]

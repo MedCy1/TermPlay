@@ -3,6 +3,7 @@ mod audio;
 mod cli;
 mod config;
 mod core;
+mod engine;
 mod games;
 mod highscores;
 mod menu;
