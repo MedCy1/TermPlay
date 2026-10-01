@@ -7,6 +7,7 @@ mod engine;
 mod games;
 mod highscores;
 mod menu;
+mod menu_ui;
 mod music;
 
 use app::App;

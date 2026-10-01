@@ -105,16 +105,26 @@ impl App {
         let mut menu = MainMenu::new(self.registry.list_games())
             .map_err(|e| format!("Failed to initialize menu: {e}"))?;
         let mut last_tick = Instant::now();
+        let mut last_frame = Instant::now();
 
         loop {
+            menu.animate(last_frame.elapsed());
+            last_frame = Instant::now();
             terminal.draw(|f| {
                 menu.draw(f);
                 crate::engine::fx::finish(f.buffer_mut());
             })?;
 
+            // 60 fps tant que les animations sont actives, sinon 10 fps suffisent
+            let frame = if crate::engine::fx::fx_enabled() {
+                16
+            } else {
+                100
+            };
             let timeout = Duration::from_millis(100)
                 .checked_sub(last_tick.elapsed())
-                .unwrap_or_else(|| Duration::from_secs(0));
+                .unwrap_or_else(|| Duration::from_secs(0))
+                .min(Duration::from_millis(frame));
 
             if event::poll(timeout)? {
                 if let Event::Key(key) = event::read()? {

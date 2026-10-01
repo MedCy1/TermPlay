@@ -1,7 +1,9 @@
 use crate::audio::AudioManager;
 use crate::config::ConfigManager;
 use crate::core::{GameAction, GameInfo};
+use crate::engine::fx;
 use crate::highscores::HighScoreManager;
+use crate::menu_ui;
 use crate::music::{
     breakout::BREAKOUT_MUSIC, gameoflife::GAMEOFLIFE_MUSIC, minesweeper::MINESWEEPER_MUSIC,
     pong::PONG_MUSIC, snake::SNAKE_MUSIC, tetris::TETRIS_MUSIC, GameMusic, _2048::GAME2048_MUSIC,
@@ -54,6 +56,13 @@ pub struct MainMenu {
     music_tracks: Vec<MusicTrack>,
     current_playing: Option<usize>,
     current_variant: Vec<usize>, // Index de la variante sélectionnée pour chaque track
+
+    // Animation
+    time: f32,
+    sel_pos: f32, // position (fractionnaire) de la barre de sélection
+    prev_menu: MenuState,
+    prev_sel: usize,
+    card_t: f32, // 0 → 1 après un changement de sélection (éclaire la carte)
 }
 
 #[derive(Debug, Clone)]
@@ -180,6 +189,11 @@ impl MainMenu {
             music_tracks,
             current_playing: None,
             current_variant,
+            time: 0.0,
+            sel_pos: 0.0,
+            prev_menu: MenuState::Main,
+            prev_sel: 0,
+            card_t: 1.0,
         })
     }
 
@@ -422,7 +436,7 @@ impl MainMenu {
         // Recharger les scores si on entre dans le menu High Scores
         if matches!(
             new_menu,
-            MenuState::HighScores | MenuState::HighScoresDetail(_)
+            MenuState::Games | MenuState::HighScores | MenuState::HighScoresDetail(_)
         ) {
             if let Err(e) = self.highscore_manager.reload() {
                 eprintln!("Error reloading scores: {e}");
@@ -653,6 +667,26 @@ impl MainMenu {
         draw_main_menu(frame, self);
     }
 
+    /// Avance les animations (60 fps): temps, glissement de la sélection, éclat de la carte.
+    pub fn animate(&mut self, dt: std::time::Duration) {
+        let dt = dt.as_secs_f32().min(0.1);
+        self.time += dt;
+        let target = self.selected_index as f32;
+        if !fx::fx_enabled() || self.prev_menu != self.current_menu {
+            self.sel_pos = target;
+            self.prev_menu = self.current_menu.clone();
+            self.prev_sel = self.selected_index;
+            self.card_t = 1.0;
+            return;
+        }
+        self.sel_pos += (target - self.sel_pos) * (1.0 - (-18.0 * dt).exp());
+        if self.prev_sel != self.selected_index {
+            self.prev_sel = self.selected_index;
+            self.card_t = 0.0;
+        }
+        self.card_t = (self.card_t + dt / 0.3).min(1.0);
+    }
+
     pub fn update(&mut self) {
         // Gérer la boucle de musique si on est dans le music player
         if self.current_menu == MenuState::MusicPlayer
@@ -679,10 +713,11 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
     frame.render_widget(background, area);
 
     // Layout simple et propre
+    let banner = app.current_menu == MenuState::Main && area.height >= 24;
     let chunks = Layout::vertical([
-        Constraint::Length(4), // Header
-        Constraint::Min(0),    // Zone principale
-        Constraint::Length(3), // Footer
+        Constraint::Length(if banner { 8 } else { 4 }), // Header
+        Constraint::Min(0),                             // Zone principale
+        Constraint::Length(3),                          // Footer
     ])
     .split(area);
 
@@ -722,15 +757,27 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
         Line::from(subtitle.as_str().magenta()),
     ];
 
-    let header = Paragraph::new(header_text)
-        .alignment(Alignment::Center)
-        .block(
-            Block::bordered()
-                .title(" Game Status ".white().bold())
-                .border_style(Style::new().cyan())
-                .style(Style::default().bg(Color::Rgb(25, 35, 45))),
+    if banner {
+        let head = chunks[0];
+        menu_ui::draw_banner(
+            frame.buffer_mut(),
+            Rect::new(head.x, head.y + 1, head.width, head.height - 1),
+            app.time,
         );
-    frame.render_widget(header, chunks[0]);
+        let sub =
+            Paragraph::new(Line::from(subtitle.as_str().magenta())).alignment(Alignment::Center);
+        frame.render_widget(sub, Rect::new(head.x, head.y + 6, head.width, 1));
+    } else {
+        let header = Paragraph::new(header_text)
+            .alignment(Alignment::Center)
+            .block(
+                Block::bordered()
+                    .title(" Game Status ".white().bold())
+                    .border_style(Style::new().cyan())
+                    .style(Style::default().bg(Color::Rgb(25, 35, 45))),
+            );
+        frame.render_widget(header, chunks[0]);
+    }
 
     // === ZONE PRINCIPALE ===
     match &app.current_menu {
@@ -777,91 +824,100 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
                 .style(Style::default().bg(Color::Rgb(25, 35, 45))),
         );
     frame.render_widget(footer, chunks[2]);
+
+    // Poussières d'ambiance, par-dessus tout mais seulement sur les cellules vides
+    menu_ui::draw_motes(frame.buffer_mut(), area, app.time);
 }
 
 fn draw_main_options(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
-    let items: Vec<ListItem> = app
+    let rows: Vec<Line<'static>> = app
         .main_options
         .iter()
-        .map(|option| {
-            let content = vec![Line::from(vec![
-                Span::styled("  ", Style::default()),
-                Span::styled(&option.title, Style::default().fg(Color::White).bold()),
+        .map(|o| {
+            Line::from(vec![
+                Span::styled(o.title.clone(), Style::default().fg(Color::White).bold()),
                 Span::styled("  -  ", Style::default().fg(Color::Gray)),
-                Span::styled(&option.description, Style::default().fg(Color::LightBlue)),
-            ])];
-            ListItem::new(content)
+                Span::styled(o.description.clone(), Style::default().fg(Color::LightBlue)),
+            ])
         })
         .collect();
-
-    let list = List::new(items)
-        .block(
-            Block::bordered()
-                .title(" Main Menu ".white().bold())
-                .border_style(Style::new().green())
-                .style(Style::default().bg(Color::Rgb(10, 15, 20))),
-        )
-        .style(Style::default().fg(Color::White))
-        .highlight_style(
-            Style::default()
-                .bg(Color::Rgb(0, 100, 200))
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
-
-    frame.render_stateful_widget(list, area, &mut app.list_state);
+    menu_ui::draw_selector(
+        frame,
+        area,
+        " Main Menu ",
+        Color::Green,
+        (60, 140, 255),
+        &rows,
+        app.selected_index,
+        app.sel_pos,
+        app.time,
+    );
 }
 
 fn draw_games_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
-    let items: Vec<ListItem> = app
+    let with_card = area.width >= 76;
+    let (list_area, card_area) = if with_card {
+        let c = Layout::horizontal([Constraint::Min(30), Constraint::Length(38)]).split(area);
+        (c[0], Some(c[1]))
+    } else {
+        (area, None)
+    };
+
+    let rows: Vec<Line<'static>> = app
         .games_list
         .iter()
         .map(|game| {
-            let icon = match game.name.as_str() {
-                "snake" => "🐍",
-                "tetris" => "🧩",
-                "pong" => "🏓",
-                "2048" => "🔢",
-                "Minesweeper" => "💣",
-                "Breakout" => "🧱",
-                "Game of Life" => "🧬",
-                _ => "🎮",
-            };
-
-            let content = vec![Line::from(vec![
+            let (icon, accent, _) = menu_ui::game_meta(&crate::games::key(&game.name));
+            let mut spans = vec![
                 Span::styled(
-                    format!("  {icon} "),
-                    Style::default().fg(Color::Green).bold(),
+                    format!("{icon} "),
+                    Style::default().fg(fx::color(accent)).bold(),
                 ),
                 Span::styled(
                     game.name.to_uppercase(),
                     Style::default().fg(Color::White).bold(),
                 ),
-                Span::styled("  -  ", Style::default().fg(Color::Gray)),
-                Span::styled(&game.description, Style::default().fg(Color::LightBlue)),
-            ])];
-            ListItem::new(content)
+            ];
+            if !with_card {
+                spans.push(Span::styled("  -  ", Style::default().fg(Color::Gray)));
+                spans.push(Span::styled(
+                    game.description.clone(),
+                    Style::default().fg(Color::LightBlue),
+                ));
+            }
+            Line::from(spans)
         })
         .collect();
+    let selected = app.games_list.get(app.selected_index).cloned();
+    let accent = selected.as_ref().map_or((50, 210, 110), |g| {
+        menu_ui::game_meta(&crate::games::key(&g.name)).1
+    });
+    menu_ui::draw_selector(
+        frame,
+        list_area,
+        " Available Games ",
+        Color::Green,
+        accent,
+        &rows,
+        app.selected_index,
+        app.sel_pos,
+        app.time,
+    );
 
-    let list = List::new(items)
-        .block(
-            Block::bordered()
-                .title(" Available Games ".green().bold())
-                .border_style(Style::new().green())
-                .style(Style::default().bg(Color::Rgb(10, 15, 20))),
-        )
-        .style(Style::default().fg(Color::White))
-        .highlight_style(
-            Style::default()
-                .bg(Color::Rgb(0, 150, 50))
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
-
-    frame.render_stateful_widget(list, area, &mut app.list_state);
+    if let (Some(card), Some(game)) = (card_area, selected) {
+        let key = crate::games::key(&game.name);
+        let best = app.highscore_manager.get_best_score(&key).map(|s| s.score);
+        menu_ui::draw_card(
+            frame,
+            card,
+            &key,
+            &game.name,
+            &game.description,
+            best,
+            app.card_t,
+            app.time,
+        );
+    }
 }
 
 fn draw_settings_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
@@ -1241,4 +1297,53 @@ fn draw_confirm_clear_scores(frame: &mut Frame, area: Rect, game_name: &str) {
         );
 
     frame.render_widget(confirmation, area);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::games::GameRegistry;
+    use ratatui::{backend::TestBackend, Terminal};
+    use std::time::Duration;
+
+    #[test]
+    fn menu_draws_on_any_size_and_selector_glides() {
+        let registry = GameRegistry::new();
+        let mut menu = MainMenu::new(registry.list_games()).expect("menu");
+        for (w, h) in [
+            (1, 1),
+            (5, 5),
+            (30, 10),
+            (60, 20),
+            (80, 24),
+            (120, 40),
+            (250, 80),
+        ] {
+            let mut term = Terminal::new(TestBackend::new(w, h)).unwrap();
+            for _ in 0..3 {
+                menu.animate(Duration::from_millis(16));
+                term.draw(|f| menu.draw(f)).unwrap();
+            }
+            // Main → Games → Down → back, redessiné à chaque étape
+            menu.handle_key(KeyEvent::from(KeyCode::Enter));
+            menu.handle_key(KeyEvent::from(KeyCode::Enter));
+            menu.handle_key(KeyEvent::from(KeyCode::Down));
+            menu.animate(Duration::from_millis(16));
+            term.draw(|f| menu.draw(f)).unwrap();
+            menu.handle_key(KeyEvent::from(KeyCode::Esc));
+            menu.handle_key(KeyEvent::from(KeyCode::Esc));
+        }
+
+        // Le glissement converge vers l'élément sélectionné sans le dépasser
+        menu.animate(Duration::from_millis(16));
+        menu.handle_key(KeyEvent::from(KeyCode::Down));
+        menu.handle_key(KeyEvent::from(KeyCode::Down));
+        menu.animate(Duration::from_millis(16));
+        assert!(menu.sel_pos > 0.0 && menu.sel_pos < 2.0, "{}", menu.sel_pos);
+        for _ in 0..120 {
+            menu.animate(Duration::from_millis(16));
+        }
+        assert!((menu.sel_pos - 2.0).abs() < 0.01);
+        assert_eq!(menu.card_t, 1.0);
+    }
 }

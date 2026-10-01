@@ -10,7 +10,7 @@ pub mod snake;
 pub mod tetris;
 
 /// Clé de recherche: casse et séparateurs ignorés ("Game of Life" == "gameoflife").
-fn key(name: &str) -> String {
+pub fn key(name: &str) -> String {
     name.chars()
         .filter(|c| c.is_alphanumeric())
         .flat_map(char::to_lowercase)
