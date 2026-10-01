@@ -101,7 +101,7 @@ impl HighScoreManager {
         game_scores.push(score);
 
         // Trier par score décroissant
-        game_scores.sort_by(|a, b| b.score.cmp(&a.score));
+        game_scores.sort_by_key(|s| std::cmp::Reverse(s.score));
 
         // Garder seulement les 10 meilleurs
         let is_top_10 = game_scores.len() <= 10;
