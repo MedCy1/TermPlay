@@ -101,7 +101,14 @@ struct GlobalAudioManager {
 // Variable thread-locale pour éviter les problèmes de Send/Sync sur macOS
 thread_local! {
     static GLOBAL_AUDIO: std::cell::RefCell<Option<GlobalAudioManager>> = {
-        match OutputStreamBuilder::open_default_stream() {
+        // Sous `cargo test`: jamais de périphérique audio. Chaque thread de test ouvrirait (puis
+        // fermerait) un flux; sur les runners Windows sans carte son, ça plante le processus.
+        let opened = if cfg!(test) {
+            Err(rodio::StreamError::NoDevice)
+        } else {
+            OutputStreamBuilder::open_default_stream()
+        };
+        match opened {
             Ok(stream_handle) => {
                 let effects_sink = Sink::connect_new(stream_handle.mixer());
                 let music_sink = Sink::connect_new(stream_handle.mixer());
