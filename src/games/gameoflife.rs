@@ -1,5 +1,6 @@
 use crate::audio::{AudioManager, SoundEffect};
 use crate::core::{Game, GameAction};
+use crate::engine::fx;
 use crate::highscores::{GameData, HighScoreManager, Score};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
@@ -70,6 +71,16 @@ pub struct GameOfLife {
     score_saved: bool,
     max_generations_reached: u32,
     population_history: Vec<u32>,
+
+    // Rendu: âge des cellules vivantes (en générations) et rémanence des cellules mortes
+    age: [[u8; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT],
+    ghost: [[u8; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT],
+}
+
+/// Heatmap: naissance vert clair → cyan (stable) → jaune/blanc (très ancienne).
+fn age_color(age: u8) -> fx::Rgb {
+    let young = fx::lerp((130, 255, 170), (60, 210, 240), age as f32 / 4.0);
+    fx::lerp(young, (255, 245, 160), (age as f32 - 4.0) / 36.0)
 }
 
 impl GameOfLife {
@@ -95,6 +106,8 @@ impl GameOfLife {
             score_saved: false,
             max_generations_reached: 0,
             population_history: Vec::new(),
+            age: [[0; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT],
+            ghost: [[0; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT],
         };
 
         // Commencer avec un pattern initial
@@ -148,6 +161,11 @@ impl GameOfLife {
         }
     }
 
+    fn reset_fx(&mut self) {
+        self.age = [[0; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT];
+        self.ghost = [[0; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT];
+    }
+
     fn resize_grid(&mut self, width: usize, height: usize) {
         // Limiter aux dimensions maximales
         let new_width = width.min(MAX_GRID_WIDTH);
@@ -166,6 +184,7 @@ impl GameOfLife {
             new_row[..width].copy_from_slice(&self.grid[y][..width]);
         }
 
+        self.reset_fx();
         self.grid = new_grid;
         self.next_grid = [[CellState::Dead; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT];
         self.grid_width = new_width;
@@ -186,10 +205,12 @@ impl GameOfLife {
                 self.grid[y][x] = CellState::Dead;
             }
         }
+        self.reset_fx();
         self.generation = 0;
     }
 
     fn randomize_grid(&mut self) {
+        self.reset_fx();
         let mut rng = rand::rng();
         for row in 0..self.grid_height {
             for col in 0..self.grid_width {
@@ -328,6 +349,23 @@ impl GameOfLife {
                     (CellState::Dead, 3) => CellState::Alive,
                     // Toutes les autres cellules restent dans leur état
                     (state, _) => state,
+                };
+            }
+        }
+
+        // Âge / rémanence (les cellules mortes remettent l'âge à zéro, y compris après édition)
+        for y in 0..self.grid_height {
+            for x in 0..self.grid_width {
+                let was = self.grid[y][x] == CellState::Alive;
+                let now = self.next_grid[y][x] == CellState::Alive;
+                self.age[y][x] = match (was, now) {
+                    (true, true) => self.age[y][x].saturating_add(1),
+                    _ => 0,
+                };
+                self.ghost[y][x] = if was && !now {
+                    2
+                } else {
+                    self.ghost[y][x].saturating_sub(1)
                 };
             }
         }
@@ -812,15 +850,33 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
                 match game.grid[grid_y][grid_x] {
                     CellState::Alive => (
                         "██",
-                        Style::default().bg(Color::Yellow).fg(Color::Green).bold(),
+                        Style::default()
+                            .bg(Color::Yellow)
+                            .fg(fx::color(age_color(game.age[grid_y][grid_x])))
+                            .bold(),
                     ),
                     CellState::Dead => ("  ", Style::default().bg(Color::Yellow)),
                 }
             } else {
                 // Cellule normale
                 match game.grid[grid_y][grid_x] {
-                    CellState::Alive => ("██", Style::default().fg(Color::Green).bold()),
-                    CellState::Dead => ("  ", Style::default().bg(Color::Rgb(20, 25, 30))),
+                    CellState::Alive => (
+                        "██",
+                        Style::default()
+                            .fg(fx::color(age_color(game.age[grid_y][grid_x])))
+                            .bold(),
+                    ),
+                    CellState::Dead => match game.ghost[grid_y][grid_x] {
+                        0 => ("  ", Style::default().bg(Color::Rgb(20, 25, 30))),
+                        g => (
+                            "· ",
+                            Style::default().bg(Color::Rgb(20, 25, 30)).fg(Color::Rgb(
+                                40 + 30 * g,
+                                50 + 30 * g,
+                                60 + 30 * g,
+                            )),
+                        ),
+                    },
                 }
             };
 
