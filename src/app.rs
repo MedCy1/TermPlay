@@ -13,6 +13,33 @@ use ratatui::{
 use std::io::{self, Stdout, Write};
 use std::time::{Duration, Instant};
 
+const TRANSITION: Duration = Duration::from_millis(150);
+
+/// Fondu vers/depuis le noir pendant `TRANSITION`; les touches pressées pendant ce temps sont ignorées.
+fn transition<B: Backend, F: FnMut(&mut ratatui::Frame)>(
+    terminal: &mut Terminal<B>,
+    mut draw: F,
+    fade_in: bool,
+) -> std::io::Result<()> {
+    let start = Instant::now();
+    loop {
+        let p = (start.elapsed().as_secs_f32() / TRANSITION.as_secs_f32()).min(1.0);
+        let t = if fade_in { 1.0 - p } else { p };
+        terminal.draw(|f| {
+            draw(f);
+            let area = f.area();
+            crate::engine::fx::fade_to_black(f.buffer_mut(), area, t);
+        })?;
+        while event::poll(Duration::ZERO)? {
+            event::read()?;
+        }
+        if p >= 1.0 {
+            return Ok(());
+        }
+        std::thread::sleep(Duration::from_millis(16));
+    }
+}
+
 pub struct App {
     registry: GameRegistry,
 }
@@ -83,7 +110,9 @@ impl App {
                             GameAction::GameOver => {
                                 if let Some(selected_game) = menu.get_selected_game() {
                                     if let Some(mut game) = self.registry.get_game(selected_game) {
+                                        transition(&mut terminal, |f| menu.draw(f), false)?;
                                         self.run_game_loop(&mut game, &mut terminal)?;
+                                        transition(&mut terminal, |f| menu.draw(f), true)?;
                                         // Ne pas recréer le menu - la pile de navigation est préservée
                                         // Le menu reviendra automatiquement au menu Games grâce à la pile
                                     }
@@ -161,6 +190,7 @@ impl App {
         game: &mut Box<dyn Game>,
         terminal: &mut Terminal<B>,
     ) -> GameResult {
+        transition(terminal, |f| game.draw(f), true)?;
         let mut last_tick = Instant::now();
         let mut last_frame = Instant::now();
 
@@ -199,6 +229,8 @@ impl App {
                 last_tick = Instant::now();
             }
         }
+
+        transition(terminal, |f| game.draw(f), false)?;
 
         // Les ressources du jeu seront nettoyées automatiquement par Drop
 
