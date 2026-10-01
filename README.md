@@ -22,6 +22,14 @@ A beautiful collection of **terminal mini-games** built with Rust, featuring mod
 
 ![Tetris Game](docs/tetris.png)
 
+### ✨ In Motion
+
+| | |
+| --- | --- |
+| ![Snake](docs/snake.gif) | ![Tetris](docs/tetris.gif) |
+| ![Pong](docs/pong.gif) | ![Breakout](docs/breakout.gif) |
+| ![2048](docs/2048.gif) | |
+
 ## ✨ Features
 
 - 🎨 **Beautiful UI** - 24-bit RGB gradients, glow and smooth 60 fps animations
