@@ -15,6 +15,15 @@ use std::time::{Duration, Instant};
 
 const TRANSITION: Duration = Duration::from_millis(150);
 
+/// Plancher entre deux `draw`: évite d'emballer le CPU quand des événements s'enchaînent
+/// (touche maintenue, auto-repeat rapide).
+const MIN_FRAME: Duration = Duration::from_millis(8);
+
+/// Temps à attendre avant le prochain `draw` (zéro si on peut dessiner tout de suite).
+fn draw_wait(since_last_draw: Option<Duration>) -> Duration {
+    since_last_draw.map_or(Duration::ZERO, |d| MIN_FRAME.saturating_sub(d))
+}
+
 /// Fondu vers/depuis le noir pendant `TRANSITION`; les touches pressées pendant ce temps sont ignorées.
 fn transition<B: Backend, F: FnMut(&mut ratatui::Frame)>(
     terminal: &mut Terminal<B>,
@@ -200,12 +209,22 @@ impl App {
         transition(terminal, |f| game.draw(f), true)?;
         let mut last_tick = Instant::now();
         let mut last_frame = Instant::now();
+        let mut last_draw: Option<Instant> = None;
+        let mut pending_draw = true;
 
         loop {
-            terminal.draw(|f| {
-                game.draw(f);
-                crate::engine::fx::finish(f.buffer_mut());
-            })?;
+            if pending_draw && draw_wait(last_draw.map(|t| t.elapsed())).is_zero() {
+                if game.frame_time().is_some() {
+                    game.animate(last_frame.elapsed());
+                    last_frame = Instant::now();
+                }
+                terminal.draw(|f| {
+                    game.draw(f);
+                    crate::engine::fx::finish(f.buffer_mut());
+                })?;
+                last_draw = Some(Instant::now());
+                pending_draw = false;
+            }
 
             let tick_rate = game.tick_rate(); // Obtenir le tick rate dynamique
             let mut timeout = tick_rate
@@ -213,8 +232,10 @@ impl App {
                 .unwrap_or_else(|| Duration::from_secs(0));
             if let Some(ft) = game.frame_time() {
                 timeout = timeout.min(ft);
-                game.animate(last_frame.elapsed());
-                last_frame = Instant::now();
+            }
+            if pending_draw {
+                // un draw a été retardé par le plancher: se réveiller pile à temps
+                timeout = timeout.min(draw_wait(last_draw.map(|t| t.elapsed())));
             }
 
             if crossterm::event::poll(timeout)? {
@@ -229,6 +250,9 @@ impl App {
                     }
                 }
             }
+
+            // Tout événement ou tick peut avoir changé l'état à l'écran
+            pending_draw = true;
 
             if last_tick.elapsed() >= tick_rate {
                 match game.update() {
@@ -245,5 +269,21 @@ impl App {
         // Les ressources du jeu seront nettoyées automatiquement par Drop
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn draw_floor_is_enforced() {
+        assert_eq!(draw_wait(None), Duration::ZERO); // premier draw immédiat
+        assert_eq!(
+            draw_wait(Some(Duration::from_millis(3))),
+            Duration::from_millis(5)
+        );
+        assert_eq!(draw_wait(Some(MIN_FRAME)), Duration::ZERO);
+        assert_eq!(draw_wait(Some(Duration::from_secs(1))), Duration::ZERO);
     }
 }
