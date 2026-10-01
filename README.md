@@ -12,7 +12,7 @@ A beautiful collection of **terminal mini-games** built with Rust, featuring mod
 
 ### 🎮 Main Menu
 
-![Main Menu](docs/menu.png)
+![Main Menu](docs/menu.gif)
 
 ### 🐍 Snake Game  
 
@@ -33,6 +33,7 @@ A beautiful collection of **terminal mini-games** built with Rust, featuring mod
 ## ✨ Features
 
 - 🎨 **Beautiful UI** - 24-bit RGB gradients, glow and smooth 60 fps animations
+- 🌠 **Animated Menu** - Colour-wave banner, gliding selector, game preview cards and ambient dust
 - ✨ **Juicy Game Feel** - Particles, screen shake and fades on every impact (see [Visual Effects](#-visual-effects))
 - ⣿ **High-Fidelity Rendering** - Braille sub-cell canvas for smooth balls and motion trails
 - 🌈 **Terminal-Friendly** - Honors `NO_COLOR`, falls back to 256 colors, and can switch effects off with `--no-fx`
