@@ -46,7 +46,7 @@ impl ConfigManager {
     }
 
     fn get_config_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
-        let config_dir = dirs::config_dir()
+        let config_dir = base_config_dir()
             .ok_or("Could not find config directory")?
             .join("termplay");
 
@@ -93,5 +93,25 @@ impl ConfigManager {
         updater(&mut self.config.audio);
         self.save_config()?;
         Ok(())
+    }
+}
+
+/// Dossier de configuration de l'utilisateur. Sous `cargo test`, un dossier temporaire par
+/// processus: les tests ne doivent jamais lire ni écrire le vrai profil (scores, réglages).
+pub fn base_config_dir() -> Option<PathBuf> {
+    #[cfg(test)]
+    {
+        use std::sync::OnceLock;
+        static DIR: OnceLock<PathBuf> = OnceLock::new();
+        Some(
+            DIR.get_or_init(|| {
+                std::env::temp_dir().join(format!("termplay-test-{}", std::process::id()))
+            })
+            .clone(),
+        )
+    }
+    #[cfg(not(test))]
+    {
+        dirs::config_dir()
     }
 }

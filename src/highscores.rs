@@ -66,7 +66,7 @@ pub struct HighScoreManager {
 impl HighScoreManager {
     /// Crée un nouveau manager de high scores
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let config_dir = dirs::config_dir()
+        let config_dir = crate::config::base_config_dir()
             .ok_or("Unable to find config directory")?
             .join("termplay");
 
