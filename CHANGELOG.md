@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Features
+
+- feat(settings): redesigned Settings screen with tabs (Tab / 1-3 to switch, sliding between tabs)
+  - Visuals & Graphics: effects mode (Full / Low FX / Disabled), colour mode (Auto / 24-bit / 256 / Monochrome), screen shake intensity (0 / 50 / 100 %)
+  - Audio & Feedback: master, effects and music volume sliders with a click on each change, sound effects and music toggles
+  - Gameplay: Tetris ghost piece and 2048 floating scores toggles
+- feat(config): visual and gameplay settings are saved in `config.json` and applied at startup; `--no-fx`, `--no-color` and `NO_COLOR` still take precedence (shown in the UI)
+- fix(test): tests no longer read or write the real user profile (they raced each other and could wipe the high scores file)
+
 ## [1.8.0] - 2026-10-01
 
 ### Features

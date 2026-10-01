@@ -23,10 +23,86 @@ impl Default for AudioConfig {
     }
 }
 
+/// Niveau d'effets visuels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum FxMode {
+    #[default]
+    Full,
+    Low,
+    Disabled,
+}
+
+/// Mode couleur voulu (`Auto` = détection de l'environnement).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ColorPref {
+    #[default]
+    Auto,
+    TrueColor,
+    Palette256,
+    Mono,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct VisualConfig {
+    pub fx_mode: FxMode,
+    pub color_mode: ColorPref,
+    /// Intensité du screen shake: 0, 50 ou 100 (%).
+    pub shake_percent: u8,
+}
+
+impl Default for VisualConfig {
+    fn default() -> Self {
+        Self {
+            fx_mode: FxMode::Full,
+            color_mode: ColorPref::Auto,
+            shake_percent: 100,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GameplayConfig {
+    pub ghost_piece: bool,
+    pub floating_scores: bool,
+}
+
+impl Default for GameplayConfig {
+    fn default() -> Self {
+        Self {
+            ghost_piece: true,
+            floating_scores: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct GameConfig {
     pub audio: AudioConfig,
-    // Ici on pourra ajouter plus tard : high_scores, game_settings, etc.
+    pub visuals: VisualConfig,
+    pub gameplay: GameplayConfig,
+}
+
+impl GameConfig {
+    /// Applique les réglages visuels et de gameplay au moteur (les drapeaux CLI priment).
+    pub fn apply(&self) {
+        use crate::engine::fx;
+        let level = match self.visuals.fx_mode {
+            FxMode::Full => 2,
+            FxMode::Low => 1,
+            FxMode::Disabled => 0,
+        };
+        let color = match self.visuals.color_mode {
+            ColorPref::Auto => 0,
+            ColorPref::TrueColor => 1,
+            ColorPref::Palette256 => 2,
+            ColorPref::Mono => 3,
+        };
+        fx::set_prefs(level, color, self.visuals.shake_percent);
+        fx::set_gameplay(self.gameplay.ghost_piece, self.gameplay.floating_scores);
+    }
 }
 
 pub struct ConfigManager {
@@ -86,6 +162,20 @@ impl ConfigManager {
         &self.config.audio
     }
 
+    pub fn get(&self) -> &GameConfig {
+        &self.config
+    }
+
+    /// Modifie la configuration, l'applique au moteur et la sauvegarde.
+    pub fn update<F: FnOnce(&mut GameConfig)>(
+        &mut self,
+        updater: F,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        updater(&mut self.config);
+        self.config.apply();
+        self.save_config()
+    }
+
     pub fn update_audio_config<F>(&mut self, updater: F) -> Result<(), Box<dyn std::error::Error>>
     where
         F: FnOnce(&mut AudioConfig),
@@ -113,5 +203,34 @@ pub fn base_config_dir() -> Option<PathBuf> {
     #[cfg(not(test))]
     {
         dirs::config_dir()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn old_config_files_still_load_with_defaults() {
+        let old = r#"{"audio":{"master_volume":0.5,"effects_volume":0.7,"music_volume":0.3,"audio_enabled":true,"music_enabled":false}}"#;
+        let c: GameConfig = serde_json::from_str(old).unwrap();
+        assert_eq!(c.audio.master_volume, 0.5);
+        assert_eq!(c.visuals.fx_mode, FxMode::Full);
+        assert_eq!(c.visuals.shake_percent, 100);
+        assert!(c.gameplay.ghost_piece);
+    }
+
+    #[test]
+    fn config_round_trips() {
+        let mut c = GameConfig::default();
+        c.visuals.fx_mode = FxMode::Low;
+        c.visuals.color_mode = ColorPref::Palette256;
+        c.visuals.shake_percent = 50;
+        c.gameplay.ghost_piece = false;
+        let back: GameConfig = serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap();
+        assert_eq!(back.visuals.fx_mode, FxMode::Low);
+        assert_eq!(back.visuals.color_mode, ColorPref::Palette256);
+        assert_eq!(back.visuals.shake_percent, 50);
+        assert!(!back.gameplay.ghost_piece);
     }
 }

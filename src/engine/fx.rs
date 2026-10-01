@@ -13,8 +13,19 @@ pub enum ColorMode {
     Mono,
 }
 
+/// Niveau d'effets: 0 = désactivés, 1 = réduits, 2 = complets.
+static FX_LEVEL: AtomicU8 = AtomicU8::new(2);
+/// Mode couleur détecté (`ColorMode as u8`) et préférence de l'utilisateur
+/// (0 = auto, 1 = 24 bits, 2 = 256 couleurs, 3 = monochrome).
+static DETECTED: AtomicU8 = AtomicU8::new(0);
+static COLOR_PREF: AtomicU8 = AtomicU8::new(0);
+/// Mode résolu, relu à chaque frame.
 static MODE: AtomicU8 = AtomicU8::new(0);
-static FX_ON: AtomicBool = AtomicBool::new(true);
+/// Réglages imposés par `--no-fx` (bit 0) ou `--no-color` / `NO_COLOR` (bit 1): ils priment sur les préférences.
+static FORCED: AtomicU8 = AtomicU8::new(0);
+static SHAKE_PCT: AtomicU8 = AtomicU8::new(100);
+static GHOST: AtomicBool = AtomicBool::new(true);
+static FLOATS: AtomicBool = AtomicBool::new(true);
 
 /// Pure (testable): (mode, effets actifs) selon flags et environnement.
 pub fn detect(
@@ -45,8 +56,61 @@ pub fn init(no_fx: bool, no_color: bool) {
         std::env::var("COLORTERM").ok().as_deref(),
         cfg!(windows),
     );
-    MODE.store(mode as u8, Ordering::Relaxed);
-    FX_ON.store(fx, Ordering::Relaxed);
+    DETECTED.store(mode as u8, Ordering::Relaxed);
+    let mut forced = 0;
+    if no_fx || mode == ColorMode::Mono {
+        forced |= 1;
+    }
+    if mode == ColorMode::Mono {
+        forced |= 2;
+    }
+    FORCED.store(forced, Ordering::Relaxed);
+    FX_LEVEL.store(if fx { 2 } else { 0 }, Ordering::Relaxed);
+    resolve();
+}
+
+/// Recalcule le mode couleur résolu: drapeau/`NO_COLOR` > préférence > détection.
+fn resolve() {
+    let m = if FORCED.load(Ordering::Relaxed) & 2 != 0 {
+        ColorMode::Mono as u8
+    } else {
+        match COLOR_PREF.load(Ordering::Relaxed) {
+            1 => ColorMode::True as u8,
+            2 => ColorMode::Palette256 as u8,
+            3 => ColorMode::Mono as u8,
+            _ => DETECTED.load(Ordering::Relaxed),
+        }
+    };
+    MODE.store(m, Ordering::Relaxed);
+}
+
+/// Réglages utilisateur (voir `config::GameConfig::apply`). Sans effet sur ce qu'un drapeau impose.
+pub fn set_prefs(fx_level: u8, color_pref: u8, shake_pct: u8) {
+    if FORCED.load(Ordering::Relaxed) & 1 == 0 {
+        FX_LEVEL.store(fx_level.min(2), Ordering::Relaxed);
+    }
+    COLOR_PREF.store(color_pref.min(3), Ordering::Relaxed);
+    SHAKE_PCT.store(shake_pct.min(100), Ordering::Relaxed);
+    resolve();
+}
+
+pub fn set_gameplay(ghost: bool, floats: bool) {
+    GHOST.store(ghost, Ordering::Relaxed);
+    FLOATS.store(floats, Ordering::Relaxed);
+}
+
+pub fn ghost_piece() -> bool {
+    GHOST.load(Ordering::Relaxed)
+}
+
+pub fn floating_scores() -> bool {
+    FLOATS.load(Ordering::Relaxed)
+}
+
+/// (effets imposés par `--no-fx`/`NO_COLOR`, couleurs imposées par `--no-color`/`NO_COLOR`)
+pub fn forced() -> (bool, bool) {
+    let f = FORCED.load(Ordering::Relaxed);
+    (f & 1 != 0, f & 2 != 0)
 }
 
 pub fn color_mode() -> ColorMode {
@@ -59,12 +123,17 @@ pub fn color_mode() -> ColorMode {
 
 /// Particules, shake, fondus.
 pub fn fx_enabled() -> bool {
-    FX_ON.load(Ordering::Relaxed)
+    FX_LEVEL.load(Ordering::Relaxed) > 0 && color_mode() != ColorMode::Mono
+}
+
+/// Effets réduits: moins de particules, ni lueurs ni poussières d'ambiance.
+pub fn fx_low() -> bool {
+    FX_LEVEL.load(Ordering::Relaxed) == 1
 }
 
 /// Lueurs: demandent du 24 bits (les dégradés subtils bandent en 256 couleurs).
 fn glow_enabled() -> bool {
-    fx_enabled() && color_mode() == ColorMode::True
+    fx_enabled() && !fx_low() && color_mode() == ColorMode::True
 }
 
 /// Couleur RGB → indice xterm-256 le plus proche (cube 6×6×6 ou rampe de gris).
@@ -209,7 +278,9 @@ impl Shake {
         if !fx_enabled() {
             return;
         }
-        self.amp = self.amp.max(amp);
+        self.amp = self
+            .amp
+            .max(amp * SHAKE_PCT.load(Ordering::Relaxed) as f32 / 100.0);
     }
 
     pub fn update(&mut self, dt: f32) {

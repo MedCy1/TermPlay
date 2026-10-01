@@ -27,7 +27,6 @@ pub enum MenuState {
     ConfirmClearScores(String), // Confirmation pour effacer les scores d'un jeu
     MusicPlayer,
     Settings,
-    AudioSettings,
     About,
 }
 
@@ -67,6 +66,7 @@ pub struct MainMenu {
     trans: f32,   // 1 → 0 pendant le glissement entre écrans (entrées ignorées)
     last: Buffer, // dernier écran affiché (snapshot de l'écran sortant)
     slide_old: Option<Buffer>,
+    settings_tab: usize,
     slide_dir: i32, // +1: l'ancien écran part à gauche (avancer), -1: à droite (retour)
 }
 
@@ -206,6 +206,7 @@ impl MainMenu {
             last: Buffer::default(),
             slide_old: None,
             slide_dir: 1,
+            settings_tab: 0,
         })
     }
 
@@ -238,6 +239,16 @@ impl MainMenu {
                 }
                 GameAction::Continue
             }
+            KeyCode::Tab | KeyCode::BackTab if self.current_menu == MenuState::Settings => {
+                let dir = if key.code == KeyCode::Tab { 1 } else { -1 };
+                self.switch_settings_tab(dir);
+                GameAction::Continue
+            }
+            KeyCode::Char(c @ '1'..='3') if self.current_menu == MenuState::Settings => {
+                let t = c as usize - '1' as usize;
+                self.switch_settings_tab(t as i32 - self.settings_tab as i32);
+                GameAction::Continue
+            }
             KeyCode::Down => {
                 self.next_item();
                 self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
@@ -252,9 +263,8 @@ impl MainMenu {
                 if self.current_menu == MenuState::MusicPlayer {
                     self.previous_variant();
                     self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
-                } else if self.current_menu == MenuState::AudioSettings {
-                    self.decrease_audio_setting();
-                    self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
+                } else if self.current_menu == MenuState::Settings {
+                    self.adjust_setting(-1, false);
                 }
                 GameAction::Continue
             }
@@ -262,9 +272,8 @@ impl MainMenu {
                 if self.current_menu == MenuState::MusicPlayer {
                     self.next_variant();
                     self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
-                } else if self.current_menu == MenuState::AudioSettings {
-                    self.increase_audio_setting();
-                    self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
+                } else if self.current_menu == MenuState::Settings {
+                    self.adjust_setting(1, false);
                 }
                 GameAction::Continue
             }
@@ -341,8 +350,7 @@ impl MainMenu {
             }
             MenuState::ConfirmClearScores(_) => 2, // Yes/No
             MenuState::MusicPlayer => self.music_tracks.len(),
-            MenuState::Settings => 3,
-            MenuState::AudioSettings => 5, // 5 paramètres audio
+            MenuState::Settings => crate::settings::row_count(self.settings_tab),
             MenuState::About => 1,
         };
 
@@ -369,8 +377,7 @@ impl MainMenu {
             }
             MenuState::ConfirmClearScores(_) => 2, // Yes/No
             MenuState::MusicPlayer => self.music_tracks.len(),
-            MenuState::Settings => 3,
-            MenuState::AudioSettings => 5, // 5 paramètres audio
+            MenuState::Settings => crate::settings::row_count(self.settings_tab),
             MenuState::About => 1,
         };
 
@@ -413,15 +420,8 @@ impl MainMenu {
                 GameAction::Continue
             }
             MenuState::Settings => {
-                match self.selected_index {
-                    0 => {
-                        // Audio Settings
-                        self.navigate_to(MenuState::AudioSettings);
-                    }
-                    _ => {
-                        self.go_back();
-                    }
-                }
+                // Entrée: bascule les interrupteurs, fait défiler les choix
+                self.adjust_setting(1, true);
                 GameAction::Continue
             }
             MenuState::HighScores => {
@@ -440,7 +440,7 @@ impl MainMenu {
                 // Enter ne fait rien ici, utiliser Y/N
                 GameAction::Continue
             }
-            MenuState::AudioSettings | MenuState::About => {
+            MenuState::About => {
                 self.go_back();
                 GameAction::Continue
             }
@@ -469,6 +469,9 @@ impl MainMenu {
         }
 
         self.start_slide(1);
+        if new_menu == MenuState::Settings {
+            self.settings_tab = 0;
+        }
 
         // Sauvegarder le menu actuel dans la pile
         self.menu_history.push(self.current_menu.clone());
@@ -513,72 +516,131 @@ impl MainMenu {
         }
     }
 
-    fn increase_audio_setting(&mut self) {
-        match self.selected_index {
-            0 => {
-                // Master volume
-                let current = self.audio.get_master_volume();
-                let new_volume = (current + 0.1).min(1.0);
-                self.audio.set_master_volume(new_volume);
-            }
-            1 => {
-                // Effects volume
-                let current = self.audio.get_volume();
-                let new_volume = (current + 0.1).min(1.0);
-                self.audio.set_volume(new_volume);
-            }
-            2 => {
-                // Music volume
-                let current = self.audio.get_music_volume();
-                let new_volume = (current + 0.1).min(1.0);
-                self.audio.set_music_volume(new_volume);
-            }
-            3 => {
-                // Audio enabled - toggle on
-                self.audio.set_enabled(true);
-            }
-            4 => {
-                // Music enabled - toggle on
-                self.audio.set_music_enabled(true);
-            }
-            _ => {}
+    fn switch_settings_tab(&mut self, delta: i32) {
+        let n = crate::settings::TABS.len() as i32;
+        let next = (self.settings_tab as i32 + delta).rem_euclid(n) as usize;
+        if next == self.settings_tab {
+            return;
         }
-        // Sauvegarder la configuration après modification
-        self.save_audio_config();
+        self.start_slide(if delta > 0 { 1 } else { -1 });
+        self.settings_tab = next;
+        self.selected_index = 0;
+        self.list_state.select(Some(0));
+        self.sel_pos = 0.0;
+        self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
     }
 
-    fn decrease_audio_setting(&mut self) {
-        match self.selected_index {
-            0 => {
-                // Master volume
-                let current = self.audio.get_master_volume();
-                let new_volume = (current - 0.1).max(0.0);
-                self.audio.set_master_volume(new_volume);
+    /// Valeurs audio courantes (master, effets, musique, effets actifs, musique active).
+    fn audio_values(&self) -> (f32, f32, f32, bool, bool) {
+        (
+            self.audio.get_master_volume(),
+            self.audio.get_volume(),
+            self.audio.get_music_volume(),
+            self.audio.is_enabled(),
+            self.audio.is_music_enabled(),
+        )
+    }
+
+    /// Modifie le réglage sélectionné: `dir` = ±1; `enter` = touche Entrée (ne touche pas aux curseurs).
+    fn adjust_setting(&mut self, dir: i32, enter: bool) {
+        use crate::config::{ColorPref, FxMode};
+        let step = |v: f32| ((v * 10.0).round() + dir as f32).clamp(0.0, 10.0) / 10.0;
+        let cycle = |i: usize, n: usize| (i as i32 + dir).rem_euclid(n as i32) as usize;
+        let mut audio_changed = false;
+        let mut cfg_changed = false;
+        let mut feedback = true;
+        let row = self.selected_index;
+        match (self.settings_tab, row) {
+            (0, 0) => {
+                let i = cycle(crate::settings::fx_index(self.config_manager.get()), 3);
+                self.update_config(|c| {
+                    c.visuals.fx_mode = [FxMode::Full, FxMode::Low, FxMode::Disabled][i]
+                });
+                cfg_changed = true;
             }
-            1 => {
-                // Effects volume
-                let current = self.audio.get_volume();
-                let new_volume = (current - 0.1).max(0.0);
-                self.audio.set_volume(new_volume);
+            (0, 1) => {
+                let i = cycle(crate::settings::color_index(self.config_manager.get()), 4);
+                self.update_config(|c| {
+                    c.visuals.color_mode = [
+                        ColorPref::Auto,
+                        ColorPref::TrueColor,
+                        ColorPref::Palette256,
+                        ColorPref::Mono,
+                    ][i]
+                });
+                cfg_changed = true;
             }
-            2 => {
-                // Music volume
-                let current = self.audio.get_music_volume();
-                let new_volume = (current - 0.1).max(0.0);
-                self.audio.set_music_volume(new_volume);
+            (0, 2) => {
+                let i = cycle(crate::settings::shake_index(self.config_manager.get()), 3);
+                self.update_config(|c| c.visuals.shake_percent = [0, 50, 100][i]);
+                cfg_changed = true;
             }
-            3 => {
-                // Audio enabled - toggle off
-                self.audio.set_enabled(false);
+            (1, 0) if !enter => {
+                self.audio
+                    .set_master_volume(step(self.audio.get_master_volume()));
+                audio_changed = true;
             }
-            4 => {
-                // Music enabled - toggle off
-                self.audio.set_music_enabled(false);
+            (1, 1) if !enter => {
+                self.audio.set_volume(step(self.audio.get_volume()));
+                audio_changed = true;
             }
-            _ => {}
+            (1, 2) if !enter => {
+                self.audio
+                    .set_music_volume(step(self.audio.get_music_volume()));
+                audio_changed = true;
+            }
+            (1, 3) => {
+                // ←/→ allument et éteignent, Entrée bascule
+                let on = if enter {
+                    !self.audio.is_enabled()
+                } else {
+                    dir > 0
+                };
+                self.audio.set_enabled(on);
+                audio_changed = true;
+            }
+            (1, 4) => {
+                let on = if enter {
+                    !self.audio.is_music_enabled()
+                } else {
+                    dir > 0
+                };
+                self.audio.set_music_enabled(on);
+                audio_changed = true;
+            }
+            (2, 0) => {
+                let on = if enter {
+                    !self.config_manager.get().gameplay.ghost_piece
+                } else {
+                    dir > 0
+                };
+                self.update_config(|c| c.gameplay.ghost_piece = on);
+                cfg_changed = true;
+            }
+            (2, 1) => {
+                let on = if enter {
+                    !self.config_manager.get().gameplay.floating_scores
+                } else {
+                    dir > 0
+                };
+                self.update_config(|c| c.gameplay.floating_scores = on);
+                cfg_changed = true;
+            }
+            _ => feedback = false,
         }
-        // Sauvegarder la configuration après modification
-        self.save_audio_config();
+        if audio_changed {
+            self.save_audio_config();
+        }
+        // Micro-feedback sonore: le bip suit le nouveau volume des effets
+        if feedback && (audio_changed || cfg_changed) {
+            self.audio.play_sound(crate::audio::SoundEffect::MenuSelect);
+        }
+    }
+
+    fn update_config(&mut self, f: impl FnOnce(&mut crate::config::GameConfig)) {
+        if let Err(e) = self.config_manager.update(f) {
+            eprintln!("Erreur lors de la sauvegarde de la configuration: {e}");
+        }
     }
 
     fn save_audio_config(&mut self) {
@@ -763,7 +825,6 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
         MenuState::ConfirmClearScores(_) => "CONFIRM DELETION",
         MenuState::MusicPlayer => "MUSIC PLAYER",
         MenuState::Settings => "SETTINGS",
-        MenuState::AudioSettings => "AUDIO SETTINGS",
         MenuState::About => "ABOUT",
     };
 
@@ -776,8 +837,7 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
             format!("Are you sure you want to delete all scores for {game_name}?")
         }
         MenuState::MusicPlayer => "Listen to game soundtracks".to_string(),
-        MenuState::Settings => "Configure your experience".to_string(),
-        MenuState::AudioSettings => "Adjust audio and music settings".to_string(),
+        MenuState::Settings => "Visuals, audio and gameplay".to_string(),
         MenuState::About => "Information about TermPlay".to_string(),
     };
 
@@ -826,8 +886,22 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
             draw_confirm_clear_scores(frame, chunks[1], &game_name_clone)
         }
         MenuState::MusicPlayer => draw_music_player(frame, chunks[1], app),
-        MenuState::Settings => draw_settings_menu(frame, chunks[1], app),
-        MenuState::AudioSettings => draw_audio_settings_menu(frame, chunks[1], app),
+        MenuState::Settings => {
+            let rows = crate::settings::rows(
+                app.settings_tab,
+                app.config_manager.get(),
+                app.audio_values(),
+            );
+            crate::settings::draw(
+                frame,
+                chunks[1],
+                app.settings_tab,
+                &rows,
+                app.selected_index,
+                app.sel_pos,
+                app.time,
+            );
+        }
         MenuState::About => draw_about_menu(frame, chunks[1]),
     }
 
@@ -837,7 +911,9 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
         MenuState::MusicPlayer => {
             "↑↓ Select Track • ←→ Change Variant • Space/Enter Play • S Stop • Esc/Q Back"
         }
-        MenuState::AudioSettings => "↑↓ Select Setting • ←→ Adjust Value • Esc/Q Back",
+        MenuState::Settings => {
+            "↑↓ Select • ←→ Adjust • Enter Toggle • Tab/1-3 Switch tab • Esc/Q Back"
+        }
         MenuState::HighScoresDetail(_) => "C Clear Scores • Esc/Q Back",
         MenuState::ConfirmClearScores(_) => "Y Yes • N No",
         _ => "Arrow Keys Move • Enter Select • Esc/Q Back",
@@ -984,109 +1060,6 @@ fn draw_games_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
             app.time,
         );
     }
-}
-
-fn draw_settings_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
-    let settings_options = [
-        "🔊 Audio Settings",
-        "🎨 Graphics Settings (Coming soon)",
-        "⌨️ Controls Settings (Coming soon)",
-    ];
-
-    let items: Vec<ListItem> = settings_options
-        .iter()
-        .map(|option| {
-            let content = vec![Line::from(vec![
-                Span::styled("  ", Style::default()),
-                Span::styled(*option, Style::default().fg(Color::White).bold()),
-            ])];
-            ListItem::new(content)
-        })
-        .collect();
-
-    let list = List::new(items)
-        .block(
-            Block::bordered()
-                .title(" Settings Menu ".yellow().bold())
-                .border_style(Style::new().yellow())
-                .style(Style::default().bg(Color::Rgb(10, 15, 20))),
-        )
-        .style(Style::default().fg(Color::White))
-        .highlight_style(
-            Style::default()
-                .bg(Color::Rgb(200, 150, 0))
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
-
-    frame.render_stateful_widget(list, area, &mut app.list_state);
-}
-
-fn draw_audio_settings_menu(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
-    // Créer les options de settings audio avec leurs valeurs actuelles
-    let master_volume = app.audio.get_master_volume();
-    let volume = app.audio.get_volume();
-    let music_volume = app.audio.get_music_volume();
-    let audio_enabled = app.audio.is_enabled();
-    let music_enabled = app.audio.is_music_enabled();
-
-    // Helper pour créer une barre de volume visuelle
-    let create_volume_bar = |value: f32| -> String {
-        let filled = (value * 10.0) as usize;
-        let empty = 10 - filled;
-        format!(
-            "[{}{}] {}%",
-            "█".repeat(filled),
-            "░".repeat(empty),
-            (value * 100.0) as u8
-        )
-    };
-
-    let audio_settings = [
-        format!("🎚️ Master Volume     {}", create_volume_bar(master_volume)),
-        format!("🔊 Effects Volume    {}", create_volume_bar(volume)),
-        format!("🎵 Music Volume      {}", create_volume_bar(music_volume)),
-        format!(
-            "📢 Audio Enabled     [{}] {}",
-            if audio_enabled { "✓" } else { "✗" },
-            if audio_enabled { "ON" } else { "OFF" }
-        ),
-        format!(
-            "🎶 Music Enabled     [{}] {}",
-            if music_enabled { "✓" } else { "✗" },
-            if music_enabled { "ON" } else { "OFF" }
-        ),
-    ];
-
-    let items: Vec<ListItem> = audio_settings
-        .iter()
-        .map(|setting| {
-            let content = vec![Line::from(vec![
-                Span::styled("  ", Style::default()),
-                Span::styled(setting, Style::default().fg(Color::White).bold()),
-            ])];
-            ListItem::new(content)
-        })
-        .collect();
-
-    let list = List::new(items)
-        .block(
-            Block::bordered()
-                .title(" Audio Settings ".cyan().bold())
-                .border_style(Style::new().cyan())
-                .style(Style::default().bg(Color::Rgb(10, 15, 20))),
-        )
-        .style(Style::default().fg(Color::White))
-        .highlight_style(
-            Style::default()
-                .bg(Color::Rgb(0, 150, 200))
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
-
-    frame.render_stateful_widget(list, area, &mut app.list_state);
 }
 
 fn draw_about_menu(frame: &mut Frame, area: Rect) {
@@ -1455,5 +1428,69 @@ mod tests {
         menu.animate(Duration::from_millis(100));
         term.draw(|f| menu.draw(f)).unwrap();
         assert!(menu.slide_old.is_none());
+    }
+
+    fn press(menu: &mut MainMenu, k: KeyCode) {
+        menu.handle_key(KeyEvent::from(k));
+        menu.animate(Duration::from_millis(100));
+        menu.animate(Duration::from_millis(100));
+    }
+
+    #[test]
+    fn settings_tabs_adjust_and_persist() {
+        let registry = GameRegistry::new();
+        let mut menu = MainMenu::new(registry.list_games()).expect("menu");
+        menu.animate(Duration::from_millis(100));
+        for _ in 0..3 {
+            press(&mut menu, KeyCode::Down);
+        }
+        press(&mut menu, KeyCode::Enter);
+        assert_eq!(menu.current_menu, MenuState::Settings);
+        assert_eq!(menu.settings_tab, 0);
+
+        // Onglets: Tab, BackTab et touches numériques
+        press(&mut menu, KeyCode::Tab);
+        assert_eq!(menu.settings_tab, 1);
+        press(&mut menu, KeyCode::Char('3'));
+        assert_eq!(menu.settings_tab, 2);
+        press(&mut menu, KeyCode::BackTab);
+        assert_eq!(menu.settings_tab, 1);
+
+        // Curseur de volume: ±10 %, borné à 0..1, sauvegardé
+        let before = menu.audio.get_master_volume();
+        press(&mut menu, KeyCode::Left);
+        assert!((menu.audio.get_master_volume() - (before - 0.1).max(0.0)).abs() < 0.001);
+        for _ in 0..12 {
+            press(&mut menu, KeyCode::Right);
+        }
+        assert_eq!(menu.audio.get_master_volume(), 1.0);
+        assert_eq!(menu.config_manager.get().audio.master_volume, 1.0);
+
+        // Interrupteur de gameplay: Entrée bascule et la config est enregistrée
+        press(&mut menu, KeyCode::Tab);
+        assert!(menu.config_manager.get().gameplay.ghost_piece);
+        press(&mut menu, KeyCode::Enter);
+        assert!(!menu.config_manager.get().gameplay.ghost_piece);
+        assert!(!crate::engine::fx::ghost_piece());
+        press(&mut menu, KeyCode::Enter);
+        assert!(menu.config_manager.get().gameplay.ghost_piece);
+
+        // Choix visuel: Effets Full → Low → (retour) Full
+        press(&mut menu, KeyCode::Tab);
+        assert_eq!(menu.settings_tab, 0);
+        press(&mut menu, KeyCode::Right);
+        assert_eq!(
+            menu.config_manager.get().visuals.fx_mode,
+            crate::config::FxMode::Low
+        );
+        press(&mut menu, KeyCode::Left);
+        assert_eq!(
+            menu.config_manager.get().visuals.fx_mode,
+            crate::config::FxMode::Full
+        );
+
+        // Le fichier de config relu contient les changements
+        let reloaded = ConfigManager::new().unwrap();
+        assert_eq!(reloaded.get().audio.master_volume, 1.0);
     }
 }

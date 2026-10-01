@@ -9,6 +9,7 @@ mod highscores;
 mod menu;
 mod menu_ui;
 mod music;
+mod settings;
 
 use app::App;
 use clap::Parser;
@@ -81,6 +82,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     engine::fx::init(cli.no_fx, cli.no_color);
     engine::rng::init();
+    if let Ok(cfg) = config::ConfigManager::new() {
+        cfg.get().apply();
+    }
     let mut app = App::new();
 
     match cli.command {

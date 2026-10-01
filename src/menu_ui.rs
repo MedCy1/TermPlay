@@ -75,7 +75,7 @@ const MOTES: usize = 36;
 /// Poussières d'étoiles qui montent lentement. Position calculée à partir du temps
 /// (pas d'état, pas d'aléa); uniquement sur des cellules vides pour ne jamais gêner le texte.
 pub fn draw_motes(buf: &mut Buffer, area: Rect, time: f32) {
-    if !fx::fx_enabled() || area.width < 4 || area.height < 4 {
+    if !fx::fx_enabled() || fx::fx_low() || area.width < 4 || area.height < 4 {
         return;
     }
     for i in 0..MOTES {

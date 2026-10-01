@@ -218,7 +218,7 @@ impl Game2048 {
                 .burst(x0 + 3.5, y0 + 1.0, 8, 6.0, (255, 255, 255), dark);
             self.flash[r][c] = 1.0;
             self.pop[r][c] = 1.0;
-            if v >= 128 {
+            if v >= 128 && fx::floating_scores() {
                 self.floats.push(Float {
                     x: x0 + 2.0,
                     y: y0 - 1.0,

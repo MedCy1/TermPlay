@@ -750,10 +750,11 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &mut TetrisGame) {
     if let Some(piece) = &game.current_piece {
         let rgb = piece.piece_type.get_color();
         let ghost = ghost_of(&game.board, piece);
+        let show_ghost = fx::ghost_piece();
         let blocks = piece.get_blocks();
         let dim = fx::lerp(rgb, (10, 15, 20), 0.45);
         for b in ghost.get_blocks() {
-            if b.y >= 0 && !blocks.contains(&b) {
+            if show_ghost && b.y >= 0 && !blocks.contains(&b) {
                 for dx in 0..2 {
                     fx::put(buf, ox + b.x * 2 + dx, oy + b.y, '·', dim);
                 }

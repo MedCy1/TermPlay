@@ -44,6 +44,12 @@ impl Particles {
         if !super::fx::fx_enabled() {
             return;
         }
+        // Effets réduits: un tiers des particules
+        let n = if super::fx::fx_low() {
+            n.div_ceil(3)
+        } else {
+            n
+        };
         let mut rng = rand::rng();
         for _ in 0..n {
             if self.pool.len() >= self.cap {

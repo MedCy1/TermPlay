@@ -223,6 +223,8 @@ Game names are case-insensitive (`termplay game breakout`, `termplay game "Game 
 
 Both flags are global and work with every subcommand.
 
+These choices can also be changed (and saved) in **Settings → Visuals & Graphics**; the flags and `NO_COLOR` always take precedence over saved settings.
+
 
 ## 🎮 How to Play
 
