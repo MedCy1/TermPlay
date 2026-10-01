@@ -77,6 +77,8 @@ pub struct GameOfLife {
     ghost: [[u8; MAX_GRID_WIDTH]; MAX_GRID_HEIGHT],
 }
 
+const CELL_BG: fx::Rgb = (20, 25, 30);
+
 /// Heatmap: naissance vert clair → cyan (stable) → jaune/blanc (très ancienne).
 fn age_color(age: u8) -> fx::Rgb {
     let young = fx::lerp((130, 255, 170), (60, 210, 240), age as f32 / 4.0);
@@ -821,7 +823,8 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
     let grid_start_y =
         inner_area.y + (inner_area.height as usize).saturating_sub(total_grid_height) as u16 / 2;
 
-    // Dessiner la grille cellule par cellule
+    // Dessiner la grille cellule par cellule (écriture directe dans le buffer)
+    let buf = frame.buffer_mut();
     for display_y in 0..cells_per_col {
         for display_x in 0..cells_per_row {
             let grid_x = start_x + display_x;
@@ -831,63 +834,27 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
                 continue;
             }
 
-            let cell_x = grid_start_x + (display_x * cell_width) as u16;
-            let cell_y = grid_start_y + display_y as u16;
-
-            let cell_area = Rect {
-                x: cell_x,
-                y: cell_y,
-                width: cell_width as u16,
-                height: cell_height as u16,
-            };
-            // Terminal plus petit que la grille: ne rien dessiner hors de l'écran
-            let cell_area = cell_area.intersection(frame.area());
-            if cell_area.is_empty() {
-                continue;
-            }
-
-            // Déterminer le contenu et le style de la cellule
-            let (cell_content, cell_style) = if game.state == GameState::Editing
+            let (cx, cy) = (
+                grid_start_x as i32 + (display_x * cell_width) as i32,
+                grid_start_y as i32 + display_y as i32,
+            );
+            let cursor = game.state == GameState::Editing
                 && grid_x == game.cursor_x
-                && grid_y == game.cursor_y
-            {
-                // Curseur en mode édition
-                match game.grid[grid_y][grid_x] {
-                    CellState::Alive => (
-                        "██",
-                        Style::default()
-                            .bg(Color::Yellow)
-                            .fg(fx::color(age_color(game.age[grid_y][grid_x])))
-                            .bold(),
-                    ),
-                    CellState::Dead => ("  ", Style::default().bg(Color::Yellow)),
-                }
-            } else {
-                // Cellule normale
-                match game.grid[grid_y][grid_x] {
-                    CellState::Alive => (
-                        "██",
-                        Style::default()
-                            .fg(fx::color(age_color(game.age[grid_y][grid_x])))
-                            .bold(),
-                    ),
-                    CellState::Dead => match game.ghost[grid_y][grid_x] {
-                        0 => ("  ", Style::default().bg(Color::Rgb(20, 25, 30))),
-                        g => (
-                            "· ",
-                            Style::default().bg(Color::Rgb(20, 25, 30)).fg(Color::Rgb(
-                                40 + 30 * g,
-                                50 + 30 * g,
-                                60 + 30 * g,
-                            )),
-                        ),
-                    },
-                }
+                && grid_y == game.cursor_y;
+            let (ch, fg, bg) = match game.grid[grid_y][grid_x] {
+                CellState::Alive => ('█', age_color(game.age[grid_y][grid_x]), CELL_BG),
+                CellState::Dead => match game.ghost[grid_y][grid_x] {
+                    0 => (' ', CELL_BG, CELL_BG),
+                    g => ('·', (40 + 30 * g, 50 + 30 * g, 60 + 30 * g), CELL_BG),
+                },
             };
-
-            let cell_widget = Paragraph::new(cell_content).style(cell_style);
-
-            frame.render_widget(cell_widget, cell_area);
+            // Curseur en mode édition: fond jaune
+            let bg = if cursor { (255, 255, 0) } else { bg };
+            for dx in 0..cell_width as i32 {
+                // ponytail: 2e colonne vide pour les cellules mortes à rémanence ("· ")
+                let ch = if ch == '·' && dx == 1 { ' ' } else { ch };
+                fx::put_bg(buf, cx + dx, cy, ch, fg, bg, ch == '█');
+            }
         }
     }
 
@@ -1040,5 +1007,27 @@ fn draw_game_of_life(frame: &mut ratatui::Frame, game: &GameOfLife) {
         );
 
         frame.render_widget(help_popup, help_area);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::{backend::TestBackend, Terminal};
+
+    #[test]
+    fn living_cells_are_drawn_with_age_color() {
+        let mut game = GameOfLife::new();
+        let mut term = Terminal::new(TestBackend::new(120, 50)).unwrap();
+        term.draw(|f| game.draw(f)).unwrap();
+        let alive = term
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .filter(|c| c.symbol() == "█" && c.fg == fx::color(age_color(0)))
+            .count();
+        // planeur (5) + bloc (4) + clignotant (3) à 2 colonnes par cellule, âge 0
+        assert!(alive >= 2 * 12, "cellules vivantes dessinées: {alive}");
     }
 }
