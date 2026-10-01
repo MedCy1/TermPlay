@@ -9,6 +9,14 @@ pub mod pong;
 pub mod snake;
 pub mod tetris;
 
+/// Clé de recherche: casse et séparateurs ignorés ("Game of Life" == "gameoflife").
+fn key(name: &str) -> String {
+    name.chars()
+        .filter(|c| c.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
 pub type GameConstructor = Box<dyn Fn() -> Box<dyn Game>>;
 
 pub struct GameRegistry {
@@ -30,13 +38,13 @@ impl GameRegistry {
     where
         F: Fn() -> Box<dyn Game> + 'static,
     {
-        self.games.insert(name.to_string(), Box::new(constructor));
+        self.games.insert(key(name), Box::new(constructor));
         self.info
-            .insert(name.to_string(), GameInfo::new(name, description));
+            .insert(key(name), GameInfo::new(name, description));
     }
 
     pub fn get_game(&self, name: &str) -> Option<Box<dyn Game>> {
-        self.games.get(name).map(|constructor| constructor())
+        self.games.get(&key(name)).map(|constructor| constructor())
     }
 
     pub fn list_games(&self) -> Vec<&GameInfo> {
@@ -46,7 +54,7 @@ impl GameRegistry {
     }
 
     pub fn has_game(&self, name: &str) -> bool {
-        self.games.contains_key(name)
+        self.games.contains_key(&key(name))
     }
 
     fn register_all_games(&mut self) {
@@ -97,6 +105,24 @@ mod tests {
     use crossterm::event::{KeyCode, KeyEvent};
     use ratatui::{backend::TestBackend, Terminal};
     use std::time::Duration;
+
+    #[test]
+    fn lookup_ignores_case_and_spaces() {
+        let r = GameRegistry::new();
+        for n in [
+            "breakout",
+            "BREAKOUT",
+            "minesweeper",
+            "gameoflife",
+            "Game of Life",
+            "2048",
+            "snake",
+        ] {
+            assert!(r.has_game(n), "{n}");
+            assert!(r.get_game(n).is_some(), "{n}");
+        }
+        assert!(!r.has_game("doom"));
+    }
 
     /// Chaque jeu doit pouvoir dessiner sur n'importe quelle taille sans paniquer.
     /// Pas de game over ici: il écrirait dans le vrai fichier de high scores.
