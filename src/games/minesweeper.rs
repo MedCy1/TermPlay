@@ -819,3 +819,95 @@ fn draw_minesweeper_game(frame: &mut ratatui::Frame, game: &mut MinesweeperGame)
         frame.render_widget(popup, popup_area);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Partie avec mines placées à la main (pas d'aléatoire, pas de premier clic sûr).
+    fn game_with_mines(mines: &[(usize, usize)]) -> MinesweeperGame {
+        let mut g = MinesweeperGame::new();
+        for &(x, y) in mines {
+            g.grid[y][x].is_mine = true;
+        }
+        g.mines_generated = true;
+        for y in 0..GRID_HEIGHT {
+            for x in 0..GRID_WIDTH {
+                if !g.grid[y][x].is_mine {
+                    g.grid[y][x].adjacent_mines = g.count_adjacent_mines(x, y);
+                }
+            }
+        }
+        g
+    }
+
+    fn revealed(g: &MinesweeperGame) -> usize {
+        g.grid
+            .iter()
+            .flatten()
+            .filter(|c| c.state == CellState::Revealed)
+            .count()
+    }
+
+    #[test]
+    fn empty_zone_stops_at_numbered_border() {
+        // Anneau de mines autour d'une zone 3×3 (6..=8): seul le centre vaut 0
+        let mut ring = Vec::new();
+        for i in 5..=9 {
+            ring.extend([(5, i), (9, i), (i, 5), (i, 9)]);
+        }
+        ring.sort_unstable();
+        ring.dedup();
+        let mut g = game_with_mines(&ring);
+        assert_eq!(g.grid[7][7].adjacent_mines, 0);
+
+        g.reveal_cell(7, 7);
+
+        assert_eq!(revealed(&g), 9, "exactement la zone 3×3");
+        for y in 6..=8 {
+            for x in 6..=8 {
+                assert_eq!(g.grid[y][x].state, CellState::Revealed, "({x},{y})");
+            }
+        }
+        // Les cases chiffrées (bordure) sont révélées mais ne propagent pas plus loin
+        assert!(g.grid[6][6].adjacent_mines > 0);
+        assert_eq!(g.grid[4][4].state, CellState::Hidden);
+        assert_eq!(g.grid[7][5].state, CellState::Hidden); // mine de l'anneau
+        assert!(!g.game_over);
+    }
+
+    #[test]
+    fn cascade_floods_whole_board_around_a_lone_mine() {
+        let mut g = game_with_mines(&[(15, 15)]);
+        g.reveal_cell(0, 0);
+        assert_eq!(revealed(&g), GRID_WIDTH * GRID_HEIGHT - 1);
+        assert_eq!(g.grid[15][15].state, CellState::Hidden);
+        assert_eq!(g.cells_revealed, GRID_WIDTH * GRID_HEIGHT - 1);
+        assert!(!g.game_over);
+    }
+
+    #[test]
+    fn cascade_skips_flagged_cells() {
+        let mut g = game_with_mines(&[(15, 15)]);
+        g.grid[3][3].state = CellState::Flagged;
+        g.reveal_cell(0, 0);
+        assert_eq!(g.grid[3][3].state, CellState::Flagged);
+        assert_eq!(revealed(&g), GRID_WIDTH * GRID_HEIGHT - 2);
+    }
+
+    #[test]
+    fn numbered_cell_reveals_only_itself() {
+        let mut g = game_with_mines(&[(8, 8)]);
+        assert_eq!(g.grid[7][7].adjacent_mines, 1);
+        g.reveal_cell(7, 7);
+        assert_eq!(revealed(&g), 1);
+    }
+
+    #[test]
+    fn wave_reaches_far_cells_later() {
+        let mut g = game_with_mines(&[(15, 15)]);
+        g.reveal_cell(0, 0);
+        assert!(g.show_at[0][1] < g.show_at[0][8]);
+        assert!(g.show_at[0][8] < g.show_at[8][8]);
+    }
+}
