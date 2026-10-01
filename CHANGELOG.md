@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.9.1] - 2026-10-01
+
+### Fixes
+
+- fix(config): `config.json` and `highscores.json` are written atomically (temp file + rename); a corrupt or empty config falls back to defaults instead of failing at startup
+- fix(deps): update `bytes`, `quinn-proto`, `rustls` and `rustls-webpki` to resolve RUSTSEC advisories
+- fix(test): never open an audio device under `cargo test` (crashed the Windows CI binary)
+- test(tetris): restrict the allocation-counting test to unix
+
 ## [1.9.0] - 2026-10-01
 
 ### Features
