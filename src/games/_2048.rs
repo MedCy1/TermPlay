@@ -235,69 +235,25 @@ impl Game2048 {
         self.merges.clear();
     }
 
-    /// Une ligne à la fois: tasse les tuiles vers `pos(0)` et fusionne les paires.
+    /// Applique un coup: logique pure dans `compute_move`, puis audio / victoire.
     fn move_tiles(&mut self, direction: Direction) {
         if self.sliding {
             self.finish_slide();
         }
         self.moved = false;
-        self.slides.clear();
-        self.merges.clear();
-        let mut new_grid = [[0u32; GRID_SIZE]; GRID_SIZE];
-        let last = GRID_SIZE - 1;
-
-        for i in 0..GRID_SIZE {
-            // k = rang dans le sens du déplacement
-            let pos = |k: usize| match direction {
-                Direction::Left => (i, k),
-                Direction::Right => (i, last - k),
-                Direction::Up => (k, i),
-                Direction::Down => (last - k, i),
-            };
-            let mut out = [0u32; GRID_SIZE];
-            let mut merged = [false; GRID_SIZE];
-            let mut t = 0;
-            for k in 0..GRID_SIZE {
-                let (r, c) = pos(k);
-                let v = self.grid[r][c];
-                if v == 0 {
-                    continue;
-                }
-                if t > 0 && out[t - 1] == v && !merged[t - 1] {
-                    out[t - 1] = v * 2;
-                    merged[t - 1] = true;
-                    let (tr, tc) = pos(t - 1);
-                    self.slides.push(Slide {
-                        from: (r, c),
-                        to: (tr, tc),
-                        value: v,
-                    });
-                    self.merges.push((tr, tc, v * 2));
-                    self.score += v * 2;
-                    self.audio.play_sound(SoundEffect::Game2048Merge);
-
-                    if v * 2 == 2048 && !self.won {
-                        self.won = true;
-                        self.audio.play_sound(SoundEffect::Game2048Victory);
-                        self.audio.stop_music();
-                        self.audio.play_2048_music_celebration();
-                        self.music_started = false;
-                        self.save_high_score_if_needed();
-                    }
-                } else {
-                    out[t] = v;
-                    self.slides.push(Slide {
-                        from: (r, c),
-                        to: pos(t),
-                        value: v,
-                    });
-                    t += 1;
-                }
-            }
-            for (k, &v) in out.iter().enumerate() {
-                let (r, c) = pos(k);
-                new_grid[r][c] = v;
-            }
+        let (new_grid, gained) =
+            compute_move(&self.grid, direction, &mut self.slides, &mut self.merges);
+        self.score += gained;
+        for _ in 0..self.merges.len() {
+            self.audio.play_sound(SoundEffect::Game2048Merge);
+        }
+        if !self.won && self.merges.iter().any(|m| m.2 == 2048) {
+            self.won = true;
+            self.audio.play_sound(SoundEffect::Game2048Victory);
+            self.audio.stop_music();
+            self.audio.play_2048_music_celebration();
+            self.music_started = false;
+            self.save_high_score_if_needed();
         }
 
         self.moved = new_grid != self.grid;
@@ -916,5 +872,150 @@ fn draw_tile(
             }
             fx::put_bg(buf, x + dx, y + dy, glyph, c, b, glyph.is_ascii_digit());
         }
+    }
+}
+
+type Grid = [[u32; GRID_SIZE]; GRID_SIZE];
+
+/// Une ligne à la fois: tasse les tuiles vers le bord du coup et fusionne les paires
+/// (une tuile ne fusionne qu'une fois). Retourne la grille et le score gagné;
+/// remplit `slides` (déplacements) et `merges` (cases fusionnées).
+fn compute_move(
+    grid: &Grid,
+    direction: Direction,
+    slides: &mut Vec<Slide>,
+    merges: &mut Vec<(usize, usize, u32)>,
+) -> (Grid, u32) {
+    slides.clear();
+    merges.clear();
+    let mut new_grid = [[0u32; GRID_SIZE]; GRID_SIZE];
+    let mut gained = 0;
+    let last = GRID_SIZE - 1;
+
+    for i in 0..GRID_SIZE {
+        // k = rang dans le sens du déplacement
+        let pos = |k: usize| match direction {
+            Direction::Left => (i, k),
+            Direction::Right => (i, last - k),
+            Direction::Up => (k, i),
+            Direction::Down => (last - k, i),
+        };
+        let mut out = [0u32; GRID_SIZE];
+        let mut merged = [false; GRID_SIZE];
+        let mut t = 0;
+        for k in 0..GRID_SIZE {
+            let (r, c) = pos(k);
+            let v = grid[r][c];
+            if v == 0 {
+                continue;
+            }
+            if t > 0 && out[t - 1] == v && !merged[t - 1] {
+                out[t - 1] = v * 2;
+                merged[t - 1] = true;
+                let (tr, tc) = pos(t - 1);
+                slides.push(Slide {
+                    from: (r, c),
+                    to: (tr, tc),
+                    value: v,
+                });
+                merges.push((tr, tc, v * 2));
+                gained += v * 2;
+            } else {
+                out[t] = v;
+                slides.push(Slide {
+                    from: (r, c),
+                    to: pos(t),
+                    value: v,
+                });
+                t += 1;
+            }
+        }
+        for (k, &v) in out.iter().enumerate() {
+            let (r, c) = pos(k);
+            new_grid[r][c] = v;
+        }
+    }
+    if new_grid == *grid {
+        slides.clear();
+        merges.clear();
+    }
+    (new_grid, gained)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use Direction::*;
+
+    fn mv(grid: Grid, d: Direction) -> (Grid, u32, Vec<(usize, usize, u32)>) {
+        let (mut s, mut m) = (Vec::new(), Vec::new());
+        let (g, gained) = compute_move(&grid, d, &mut s, &mut m);
+        (g, gained, m)
+    }
+
+    #[test]
+    fn row_merges_once_per_tile() {
+        let g = [[2, 2, 2, 2], [0; 4], [0; 4], [0; 4]];
+        let (n, gained, merges) = mv(g, Left);
+        assert_eq!(n[0], [4, 4, 0, 0]);
+        assert_eq!(gained, 8);
+        assert_eq!(merges, vec![(0, 0, 4), (0, 1, 4)]);
+        assert_eq!(mv(g, Right).0[0], [0, 0, 4, 4]);
+    }
+
+    #[test]
+    fn no_chain_merge() {
+        // [4,2,2,0] -> [4,4,0,0] et non [8,0,0,0]
+        let g = [[4, 2, 2, 0], [0; 4], [0; 4], [0; 4]];
+        assert_eq!(mv(g, Left).0[0], [4, 4, 0, 0]);
+        // le plus proche du bord fusionne d'abord: [2,2,2,0] -> [4,2,0,0]
+        let g = [[2, 2, 2, 0], [0; 4], [0; 4], [0; 4]];
+        assert_eq!(mv(g, Left).0[0], [4, 2, 0, 0]);
+        assert_eq!(mv(g, Right).0[0], [0, 0, 2, 4]);
+    }
+
+    #[test]
+    fn slides_gaps_in_all_directions() {
+        let g = [[0, 0, 0, 2], [0, 0, 0, 0], [0, 0, 0, 0], [4, 0, 0, 0]];
+        assert_eq!(mv(g, Left).0, [[2, 0, 0, 0], [0; 4], [0; 4], [4, 0, 0, 0]]);
+        assert_eq!(mv(g, Right).0, [[0, 0, 0, 2], [0; 4], [0; 4], [0, 0, 0, 4]]);
+        assert_eq!(mv(g, Up).0, [[4, 0, 0, 2], [0; 4], [0; 4], [0; 4]]);
+        assert_eq!(mv(g, Down).0, [[0; 4], [0; 4], [0; 4], [4, 0, 0, 2]]);
+    }
+
+    #[test]
+    fn vertical_merges() {
+        let g = [[2, 0, 0, 0], [2, 0, 0, 0], [4, 0, 0, 0], [4, 0, 0, 0]];
+        let (n, gained, _) = mv(g, Up);
+        assert_eq!([n[0][0], n[1][0], n[2][0], n[3][0]], [4, 8, 0, 0]);
+        assert_eq!(gained, 12);
+        let (n, _, _) = mv(g, Down);
+        assert_eq!([n[0][0], n[1][0], n[2][0], n[3][0]], [0, 0, 4, 8]);
+    }
+
+    #[test]
+    fn blocked_move_changes_nothing() {
+        // Aucune case libre ni fusion possible dans ce sens
+        let g = [[2, 4, 8, 16], [0; 4], [0; 4], [0; 4]];
+        let (mut s, mut m) = (Vec::new(), Vec::new());
+        let (n, gained) = compute_move(&g, Left, &mut s, &mut m);
+        assert_eq!((n, gained), (g, 0));
+        assert!(s.is_empty() && m.is_empty()); // `moved` = false côté jeu
+        let (n, _, _) = mv(g, Up);
+        assert_eq!(n, g);
+    }
+
+    #[test]
+    fn full_board_without_merge_is_stuck() {
+        let g = [[2, 4, 2, 4], [4, 2, 4, 2], [2, 4, 2, 4], [4, 2, 4, 2]];
+        for d in [Left, Right, Up, Down] {
+            assert_eq!(mv(g, d).0, g);
+        }
+    }
+
+    #[test]
+    fn reaching_2048_is_reported() {
+        let g = [[1024, 1024, 0, 0], [0; 4], [0; 4], [0; 4]];
+        assert_eq!(mv(g, Left).2, vec![(0, 0, 2048)]);
     }
 }
