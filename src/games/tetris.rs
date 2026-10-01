@@ -1,5 +1,9 @@
 use crate::audio::{AudioManager, SoundEffect};
 use crate::core::{Game, GameAction};
+use crate::engine::{
+    fx::{self, Rgb, Shake},
+    particles::Particles,
+};
 use crate::highscores::{GameData, HighScoreManager, Score};
 use crossterm::event::{KeyCode, KeyEvent};
 use rand::Rng;
@@ -70,15 +74,15 @@ impl PieceType {
         }
     }
 
-    fn get_color(&self) -> Color {
+    fn get_color(&self) -> Rgb {
         match self {
-            PieceType::I => Color::Cyan,
-            PieceType::O => Color::Yellow,
-            PieceType::T => Color::Magenta,
-            PieceType::S => Color::Green,
-            PieceType::Z => Color::Red,
-            PieceType::J => Color::Blue,
-            PieceType::L => Color::Rgb(255, 165, 0), // Orange
+            PieceType::I => (60, 220, 230),
+            PieceType::O => (245, 220, 70),
+            PieceType::T => (190, 80, 220),
+            PieceType::S => (80, 220, 100),
+            PieceType::Z => (235, 70, 70),
+            PieceType::J => (80, 110, 240),
+            PieceType::L => (255, 165, 0), // Orange
         }
     }
 
@@ -181,6 +185,17 @@ pub struct TetrisGame {
     highscore_manager: HighScoreManager,
     start_time: std::time::Instant,
     score_saved: bool,
+
+    // Effets
+    particles: Particles,
+    shake: Shake,
+    fade: f32,
+    origin: (u16, u16), // coin du plateau (cellules terminal), mis à jour au draw
+    clear_rows: [usize; 4],
+    clear_n: usize, // > 0 pendant l'animation de flash des lignes
+    clear_t: f32,
+    flash: [(i32, i32); 4], // blocs du dernier hard drop
+    flash_t: f32,
 }
 
 impl TetrisGame {
@@ -200,9 +215,26 @@ impl TetrisGame {
             highscore_manager: HighScoreManager::default(),
             start_time: std::time::Instant::now(),
             score_saved: false,
+            particles: Particles::new(256, 14.0),
+            shake: Shake::default(),
+            fade: 0.0,
+            origin: (0, 0),
+            clear_rows: [0; 4],
+            clear_n: 0,
+            clear_t: 0.0,
+            flash: [(0, 0); 4],
+            flash_t: 0.0,
         };
         game.spawn_piece();
         game
+    }
+
+    /// Centre terminal d'une cellule du plateau (2 caractères de large).
+    fn cell_center(&self, x: usize, y: usize) -> (f32, f32) {
+        (
+            (self.origin.0 as usize + x * 2) as f32 + 1.0,
+            (self.origin.1 as usize + y) as f32 + 0.5,
+        )
     }
 
     fn spawn_piece(&mut self) {
@@ -215,6 +247,17 @@ impl TetrisGame {
             self.game_over = true;
             self.audio.stop_music();
             self.audio.play_sound(SoundEffect::TetrisGameOver);
+            // Effondrement: chaque bloc se disperse en poussière grise
+            for y in 0..BOARD_HEIGHT {
+                for x in 0..BOARD_WIDTH {
+                    if self.board[y][x].is_some() {
+                        let (px, py) = self.cell_center(x, y);
+                        self.particles
+                            .burst(px, py, 1, 7.0, (170, 170, 170), (25, 25, 25));
+                    }
+                }
+            }
+            self.shake.kick(2.0);
 
             // Sauvegarder le score si c'est un high score et pas encore sauvé
             self.save_high_score_if_needed();
@@ -248,7 +291,9 @@ impl TetrisGame {
         self.audio.play_sound(SoundEffect::TetrisPieceDrop);
 
         self.clear_lines();
-        self.spawn_piece();
+        if self.clear_n == 0 {
+            self.spawn_piece();
+        }
     }
 
     fn clear_lines(&mut self) {
@@ -279,12 +324,35 @@ impl TetrisGame {
             }
         }
 
-        // Supprimer les lignes complètes et les remplacer
-        for &line in lines_to_clear.iter().rev() {
-            for y in (1..=line).rev() {
-                self.board[y] = self.board[y - 1];
+        // Flash + particules; la suppression réelle a lieu dans `finish_clear`
+        let n = lines_to_clear.len();
+        if n > 0 {
+            let (per, speed, lift, kick) = match n {
+                1 | 2 => (2, 6.0, 0.0, 0.3),
+                3 => (3, 8.0, 3.0, 1.0),
+                _ => (4, 12.0, 10.0, 2.2),
+            };
+            for &y in &lines_to_clear {
+                for x in 0..BOARD_WIDTH {
+                    if let Some(t) = self.board[y][x] {
+                        let c = t.get_color();
+                        let (px, py) = self.cell_center(x, y);
+                        self.particles.spray(
+                            px,
+                            py,
+                            per,
+                            speed,
+                            c,
+                            fx::lerp(c, (0, 0, 0), 0.8),
+                            lift,
+                        );
+                    }
+                }
             }
-            self.board[0] = [None; BOARD_WIDTH];
+            self.shake.kick(kick);
+            self.clear_n = n.min(4);
+            self.clear_rows[..self.clear_n].copy_from_slice(&lines_to_clear[..self.clear_n]);
+            self.clear_t = 0.0;
         }
 
         // Mettre à jour le score et le niveau
@@ -303,6 +371,17 @@ impl TetrisGame {
             };
             self.score += line_score * self.level;
         }
+    }
+
+    fn finish_clear(&mut self) {
+        for &line in self.clear_rows[..self.clear_n].iter().rev() {
+            for y in (1..=line).rev() {
+                self.board[y] = self.board[y - 1];
+            }
+            self.board[0] = [None; BOARD_WIDTH];
+        }
+        self.clear_n = 0;
+        self.spawn_piece();
     }
 
     fn move_piece(&mut self, dx: i32, dy: i32) -> bool {
@@ -348,6 +427,13 @@ impl TetrisGame {
         if dropped_lines > 0 {
             self.score += dropped_lines as u32 * 2; // Points bonus pour hard drop
             self.audio.play_sound(SoundEffect::TetrisHardDrop);
+            self.shake.kick(0.4);
+        }
+        if let Some(p) = &self.current_piece {
+            for (f, b) in self.flash.iter_mut().zip(p.get_blocks()) {
+                *f = (b.x, b.y);
+            }
+            self.flash_t = 1.0;
         }
 
         self.place_piece();
@@ -407,6 +493,9 @@ impl TetrisGame {
 
 impl Game for TetrisGame {
     fn handle_key(&mut self, key: KeyEvent) -> GameAction {
+        if self.clear_n > 0 && key.code != KeyCode::Char('q') {
+            return GameAction::Continue; // animation de lignes en cours
+        }
         if self.game_over {
             match key.code {
                 KeyCode::Char('r') => {
@@ -470,7 +559,7 @@ impl Game for TetrisGame {
     }
 
     fn update(&mut self) -> GameAction {
-        if !self.game_over {
+        if !self.game_over && self.clear_n == 0 {
             // Décrémenter le compteur de célébration
             if self.tetris_celebration > 0 {
                 self.tetris_celebration -= 1;
@@ -492,12 +581,32 @@ impl Game for TetrisGame {
         draw_tetris_game(frame, self);
     }
 
+    fn frame_time(&self) -> Option<Duration> {
+        Some(Duration::from_millis(16))
+    }
+
+    fn animate(&mut self, dt: Duration) {
+        let dt = dt.as_secs_f32().min(0.1);
+        self.particles.update(dt);
+        self.shake.update(dt);
+        self.flash_t = (self.flash_t - dt / 0.15).max(0.0);
+        if self.clear_n > 0 {
+            self.clear_t += dt;
+            if self.clear_t >= 0.08 {
+                self.finish_clear();
+            }
+        }
+        if self.game_over {
+            self.fade = (self.fade + dt).min(1.0);
+        }
+    }
+
     fn tick_rate(&self) -> Duration {
         Duration::from_millis(50) // Plus rapide pour une meilleure réactivité
     }
 }
 
-fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
+fn draw_tetris_game(frame: &mut ratatui::Frame, game: &mut TetrisGame) {
     let area = frame.area();
 
     // Vérification de taille minimale pour éviter les erreurs de rendu
@@ -636,62 +745,73 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
         height: (BOARD_HEIGHT as u16).min(game_rect.height.saturating_sub(2)), // Limiter par l'espace disponible
     };
 
-    // Dessiner la grille (exactement BOARD_HEIGHT lignes)
+    game.origin = (board_area.x, board_area.y);
+    let (sx, sy) = game.shake.offset();
+    let (ox, oy) = (board_area.x as i32 + sx, board_area.y as i32 + sy);
+    let buf = frame.buffer_mut();
+
+    // Plateau (les lignes en cours de suppression flashent en blanc)
     for y in 0..BOARD_HEIGHT {
+        let clearing = game.clear_rows[..game.clear_n].contains(&y);
         for x in 0..BOARD_WIDTH {
-            let cell_x = board_area.x + (x as u16 * 2);
-            let cell_y = board_area.y + y as u16;
-
-            if cell_x + 1 < board_area.x + board_area.width
-                && cell_y < board_area.y + board_area.height
-                && y < BOARD_HEIGHT
-            {
-                let cell_area = Rect {
-                    x: cell_x,
-                    y: cell_y,
-                    width: 2,
-                    height: 1,
-                };
-
-                let (symbol, color) = if let Some(piece_type) = game.board[y][x] {
-                    ("██", piece_type.get_color())
-                } else {
-                    ("░░", Color::Rgb(40, 40, 50))
-                };
-
-                let cell = Paragraph::new(symbol).style(Style::default().fg(color));
-                frame.render_widget(cell, cell_area);
+            let (ch, c) = match game.board[y][x] {
+                Some(_) if clearing => ('█', (255, 255, 255)),
+                Some(t) => ('█', t.get_color()),
+                None => ('░', (40, 40, 50)),
+            };
+            for dx in 0..2 {
+                fx::put(buf, ox + x as i32 * 2 + dx, oy + y as i32, ch, c);
             }
         }
     }
 
-    // Dessiner la pièce actuelle
-    if let Some(piece) = &game.current_piece {
-        for block in piece.get_blocks() {
-            if block.x >= 0
-                && block.x < BOARD_WIDTH as i32
-                && block.y >= 0
-                && block.y < BOARD_HEIGHT as i32
-            {
-                let cell_x = board_area.x + (block.x as u16 * 2);
-                let cell_y = board_area.y + block.y as u16;
-
-                if cell_x + 1 < board_area.x + board_area.width
-                    && cell_y < board_area.y + board_area.height
-                {
-                    let cell_area = Rect {
-                        x: cell_x,
-                        y: cell_y,
-                        width: 2,
-                        height: 1,
-                    };
-
-                    let cell = Paragraph::new("██")
-                        .style(Style::default().fg(piece.piece_type.get_color()).bold());
-                    frame.render_widget(cell, cell_area);
+    // Flash du hard drop sur les blocs qui viennent d'être verrouillés
+    if game.flash_t > 0.0 {
+        for &(bx, by) in &game.flash {
+            if (0..BOARD_WIDTH as i32).contains(&bx) && (0..BOARD_HEIGHT as i32).contains(&by) {
+                if let Some(t) = game.board[by as usize][bx as usize] {
+                    let c = fx::lerp(t.get_color(), (255, 255, 255), game.flash_t);
+                    for dx in 0..2 {
+                        fx::put(buf, ox + bx * 2 + dx, oy + by, '█', c);
+                    }
                 }
             }
         }
+    }
+
+    // Pièce active: ghost, lueur, puis la pièce
+    if let Some(piece) = &game.current_piece {
+        let rgb = piece.piece_type.get_color();
+        let mut ghost = piece.moved(0, 0);
+        while game.is_valid_position(&ghost.moved(0, 1)) {
+            ghost = ghost.moved(0, 1);
+        }
+        let blocks = piece.get_blocks();
+        let dim = fx::lerp(rgb, (10, 15, 20), 0.45);
+        for b in ghost.get_blocks() {
+            if b.y >= 0 && !blocks.contains(&b) {
+                for dx in 0..2 {
+                    fx::put(buf, ox + b.x * 2 + dx, oy + b.y, '·', dim);
+                }
+            }
+        }
+        let n = blocks.len().max(1) as i32;
+        let (cx, cy) = (
+            blocks.iter().map(|b| b.x).sum::<i32>() * 2 / n + 1,
+            blocks.iter().map(|b| b.y).sum::<i32>() / n,
+        );
+        fx::glow(buf, ox + cx, oy + cy, 4, rgb, 0.3);
+        for b in blocks.iter().filter(|b| b.y >= 0) {
+            for dx in 0..2 {
+                fx::put(buf, ox + b.x * 2 + dx, oy + b.y, '█', rgb);
+            }
+        }
+    }
+
+    game.particles.draw(buf, (sx, sy));
+
+    if game.game_over {
+        fx::fade_to_black(buf, board_area, game.fade * 0.85);
     }
 
     // Dessiner les infos à côté (prochaine pièce)
@@ -731,7 +851,7 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &TetrisGame) {
                         };
 
                         let piece_cell = Paragraph::new("██")
-                            .style(Style::default().fg(game.next_piece.get_color()));
+                            .style(Style::default().fg(fx::color(game.next_piece.get_color())));
                         frame.render_widget(piece_cell, piece_area);
                     }
                 }
