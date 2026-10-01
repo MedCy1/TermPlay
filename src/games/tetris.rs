@@ -116,44 +116,31 @@ impl Piece {
         }
     }
 
-    fn get_blocks(&self) -> Vec<Position> {
-        let shape = self.get_rotated_shape();
-        let mut blocks = Vec::new();
-
+    /// Les 4 blocs en coordonnées plateau. Rotation horaire appliquée aux coordonnées
+    /// de la forme (pas d'allocation).
+    fn get_blocks(&self) -> [Position; 4] {
+        let shape = self.piece_type.get_shape();
+        let (mut w, mut h) = (shape[0].len() as i32, shape.len() as i32);
+        let mut cells = [(0i32, 0i32); 4];
+        let mut n = 0;
         for (y, row) in shape.iter().enumerate() {
             for (x, &filled) in row.iter().enumerate() {
-                if filled {
-                    blocks.push(Position {
-                        x: self.position.x + x as i32,
-                        y: self.position.y + y as i32,
-                    });
+                if filled && n < 4 {
+                    cells[n] = (x as i32, y as i32);
+                    n += 1;
                 }
             }
         }
-        blocks
-    }
-
-    fn get_rotated_shape(&self) -> Vec<Vec<bool>> {
-        let original = self.piece_type.get_shape();
-        let mut shape: Vec<Vec<bool>> = original.iter().map(|row| row.to_vec()).collect();
-
         for _ in 0..self.rotation {
-            shape = Self::rotate_shape(shape);
-        }
-        shape
-    }
-
-    fn rotate_shape(shape: Vec<Vec<bool>>) -> Vec<Vec<bool>> {
-        let rows = shape.len();
-        let cols = shape[0].len();
-        let mut rotated = vec![vec![false; rows]; cols];
-
-        for (i, shape_row) in shape.iter().enumerate().take(rows) {
-            for (j, rotated_col) in rotated.iter_mut().enumerate().take(cols) {
-                rotated_col[rows - 1 - i] = shape_row[j];
+            for c in &mut cells {
+                *c = (h - 1 - c.1, c.0);
             }
+            std::mem::swap(&mut w, &mut h);
         }
-        rotated
+        cells.map(|(x, y)| Position {
+            x: self.position.x + x,
+            y: self.position.y + y,
+        })
     }
 
     fn moved(&self, dx: i32, dy: i32) -> Self {
@@ -265,16 +252,7 @@ impl TetrisGame {
     }
 
     fn is_valid_position(&self, piece: &Piece) -> bool {
-        for block in piece.get_blocks() {
-            if block.x < 0
-                || block.x >= BOARD_WIDTH as i32
-                || block.y >= BOARD_HEIGHT as i32
-                || (block.y >= 0 && self.board[block.y as usize][block.x as usize].is_some())
-            {
-                return false;
-            }
-        }
-        true
+        fits(&self.board, piece)
     }
 
     fn place_piece(&mut self) {
@@ -297,14 +275,8 @@ impl TetrisGame {
     }
 
     fn clear_lines(&mut self) {
-        let mut lines_to_clear = Vec::new();
-
-        // Identifier les lignes complètes
-        for y in 0..BOARD_HEIGHT {
-            if self.board[y].iter().all(|cell| cell.is_some()) {
-                lines_to_clear.push(y);
-            }
-        }
+        let (rows, count) = full_rows(&self.board);
+        let lines_to_clear = &rows[..count];
 
         // Jouer le son approprié selon le nombre de lignes
         if !lines_to_clear.is_empty() {
@@ -332,7 +304,7 @@ impl TetrisGame {
                 3 => (3, 8.0, 3.0, 1.0),
                 _ => (4, 12.0, 10.0, 2.2),
             };
-            for &y in &lines_to_clear {
+            for &y in lines_to_clear {
                 for x in 0..BOARD_WIDTH {
                     if let Some(t) = self.board[y][x] {
                         let c = t.get_color();
@@ -374,12 +346,7 @@ impl TetrisGame {
     }
 
     fn finish_clear(&mut self) {
-        for &line in self.clear_rows[..self.clear_n].iter().rev() {
-            for y in (1..=line).rev() {
-                self.board[y] = self.board[y - 1];
-            }
-            self.board[0] = [None; BOARD_WIDTH];
-        }
+        collapse(&mut self.board, &self.clear_rows[..self.clear_n]);
         self.clear_n = 0;
         self.spawn_piece();
     }
@@ -782,10 +749,7 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &mut TetrisGame) {
     // Pièce active: ghost, lueur, puis la pièce
     if let Some(piece) = &game.current_piece {
         let rgb = piece.piece_type.get_color();
-        let mut ghost = piece.moved(0, 0);
-        while game.is_valid_position(&ghost.moved(0, 1)) {
-            ghost = ghost.moved(0, 1);
-        }
+        let ghost = ghost_of(&game.board, piece);
         let blocks = piece.get_blocks();
         let dim = fx::lerp(rgb, (10, 15, 20), 0.45);
         for b in ghost.get_blocks() {
@@ -953,5 +917,201 @@ fn draw_tetris_game(frame: &mut ratatui::Frame, game: &mut TetrisGame) {
                     .style(Style::default().bg(Color::Black)),
             );
         frame.render_widget(popup, popup_area);
+    }
+}
+
+type Board = [[Option<PieceType>; BOARD_WIDTH]; BOARD_HEIGHT];
+
+/// La pièce est dans le plateau et ne chevauche aucun bloc posé (au-dessus du plateau: ok).
+fn fits(board: &Board, piece: &Piece) -> bool {
+    piece.get_blocks().iter().all(|b| {
+        b.x >= 0
+            && b.x < BOARD_WIDTH as i32
+            && b.y < BOARD_HEIGHT as i32
+            && (b.y < 0 || board[b.y as usize][b.x as usize].is_none())
+    })
+}
+
+/// Position de la pièce après une chute complète (ghost piece). Sans allocation.
+fn ghost_of(board: &Board, piece: &Piece) -> Piece {
+    let mut ghost = piece.clone();
+    while fits(board, &ghost.moved(0, 1)) {
+        ghost = ghost.moved(0, 1);
+    }
+    ghost
+}
+
+/// Lignes complètes (indices croissants) et leur nombre; au plus 4 par pièce posée.
+fn full_rows(board: &Board) -> ([usize; 4], usize) {
+    let mut rows = [0; 4];
+    let mut n = 0;
+    for (y, row) in board.iter().enumerate() {
+        if n < 4 && row.iter().all(|c| c.is_some()) {
+            rows[n] = y;
+            n += 1;
+        }
+    }
+    (rows, n)
+}
+
+/// Supprime les lignes données (indices croissants) et fait tomber ce qui est au-dessus.
+/// Dans l'ordre croissant: supprimer par le bas décalerait les lignes restantes à supprimer.
+fn collapse(board: &mut Board, rows: &[usize]) {
+    for &line in rows {
+        for y in (1..=line).rev() {
+            board[y] = board[y - 1];
+        }
+        board[0] = [None; BOARD_WIDTH];
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::cell::Cell;
+
+    /// Compte les allocations du thread courant (tests uniquement).
+    struct Counting;
+    thread_local!(static ALLOCS: Cell<usize> = const { Cell::new(0) });
+    unsafe impl GlobalAlloc for Counting {
+        unsafe fn alloc(&self, l: Layout) -> *mut u8 {
+            let _ = ALLOCS.try_with(|c| c.set(c.get() + 1));
+            System.alloc(l)
+        }
+        unsafe fn dealloc(&self, p: *mut u8, l: Layout) {
+            System.dealloc(p, l)
+        }
+    }
+    #[global_allocator]
+    static A: Counting = Counting;
+
+    const ALL: [PieceType; 7] = [
+        PieceType::I,
+        PieceType::O,
+        PieceType::T,
+        PieceType::S,
+        PieceType::Z,
+        PieceType::J,
+        PieceType::L,
+    ];
+
+    fn empty() -> Board {
+        [[None; BOARD_WIDTH]; BOARD_HEIGHT]
+    }
+
+    fn fill(board: &mut Board, y: usize) {
+        board[y] = [Some(PieceType::I); BOARD_WIDTH];
+    }
+
+    #[test]
+    fn rotations_keep_four_distinct_blocks() {
+        for t in ALL {
+            let mut p = Piece::new(t);
+            for _ in 0..4 {
+                let b = p.get_blocks();
+                for i in 0..4 {
+                    for j in i + 1..4 {
+                        assert_ne!((b[i].x, b[i].y), (b[j].x, b[j].y), "{t:?}");
+                    }
+                }
+                p = p.rotated();
+            }
+            // 4 rotations = identité
+            assert_eq!(p.rotation, 0);
+        }
+    }
+
+    #[test]
+    fn detects_full_rows() {
+        let mut b = empty();
+        fill(&mut b, 17);
+        fill(&mut b, 19);
+        b[18][3] = Some(PieceType::T); // ligne incomplète entre les deux
+        let (rows, n) = full_rows(&b);
+        assert_eq!(&rows[..n], &[17, 19]);
+        assert_eq!(full_rows(&empty()).1, 0);
+    }
+
+    #[test]
+    fn collapse_removes_adjacent_rows() {
+        let mut b = empty();
+        b[17][0] = Some(PieceType::T); // marqueur au-dessus des lignes pleines
+        fill(&mut b, 18);
+        fill(&mut b, 19);
+        let (rows, n) = full_rows(&b);
+        collapse(&mut b, &rows[..n]);
+        assert_eq!(full_rows(&b).1, 0, "une ligne pleine a survécu");
+        assert_eq!(b[19][0], Some(PieceType::T));
+        assert!(b[18].iter().all(|c| c.is_none()));
+    }
+
+    #[test]
+    fn collapse_keeps_rows_between_cleared_ones() {
+        let mut b = empty();
+        fill(&mut b, 16);
+        b[17][5] = Some(PieceType::S);
+        fill(&mut b, 18);
+        b[19][1] = Some(PieceType::Z);
+        let (rows, n) = full_rows(&b);
+        collapse(&mut b, &rows[..n]);
+        assert_eq!(b[19][1], Some(PieceType::Z));
+        assert_eq!(b[18][5], Some(PieceType::S));
+        assert_eq!(full_rows(&b).1, 0);
+        assert_eq!(b[17].iter().filter(|c| c.is_some()).count(), 0);
+    }
+
+    #[test]
+    fn fits_respects_walls_floor_and_blocks() {
+        let b = empty();
+        let mut p = Piece::new(PieceType::O);
+        assert!(fits(&b, &p));
+        p.position.x = -5;
+        assert!(!fits(&b, &p));
+        p.position.x = BOARD_WIDTH as i32;
+        assert!(!fits(&b, &p));
+        p.position = Position {
+            x: 4,
+            y: BOARD_HEIGHT as i32,
+        };
+        assert!(!fits(&b, &p));
+        let mut b = empty();
+        p.position = Position { x: 3, y: 4 };
+        assert!(fits(&b, &p));
+        let hit = p.get_blocks()[0];
+        b[hit.y as usize][hit.x as usize] = Some(PieceType::I);
+        assert!(!fits(&b, &p));
+    }
+
+    #[test]
+    fn ghost_lands_on_floor_and_on_stack() {
+        for t in ALL {
+            let b = empty();
+            let p = Piece::new(t);
+            let g = ghost_of(&b, &p);
+            assert!(fits(&b, &g));
+            assert!(!fits(&b, &g.moved(0, 1)), "{t:?} ne touche pas le sol");
+        }
+        let mut b = empty();
+        fill(&mut b, 19);
+        let g = ghost_of(&b, &Piece::new(PieceType::I));
+        assert!(g.get_blocks().iter().all(|k| k.y <= 18));
+    }
+
+    #[test]
+    fn ghost_and_collision_do_not_allocate() {
+        let mut b = empty();
+        fill(&mut b, 19);
+        let p = Piece::new(PieceType::T);
+        let before = ALLOCS.with(|c| c.get());
+        for _ in 0..100 {
+            let g = ghost_of(&b, &p);
+            assert!(fits(&b, &g));
+            let _ = full_rows(&b);
+            for k in g.get_blocks() {
+                std::hint::black_box(k);
+            }
+        }
+        assert_eq!(ALLOCS.with(|c| c.get()), before);
     }
 }
