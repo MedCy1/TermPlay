@@ -63,7 +63,11 @@ pub struct MainMenu {
     prev_menu: MenuState,
     prev_sel: usize,
     card_t: f32, // 0 → 1 après un changement de sélection (éclaire la carte)
+    trans: f32,  // 1 → 0 après un changement d'écran: fondu d'entrée + entrées ignorées
 }
+
+/// Durée du fondu entre deux écrans du menu (assez court pour rester réactif au clavier).
+const SCREEN_FADE: f32 = 0.09;
 
 #[derive(Debug, Clone)]
 pub struct MusicTrack {
@@ -194,10 +198,15 @@ impl MainMenu {
             prev_menu: MenuState::Main,
             prev_sel: 0,
             card_t: 1.0,
+            trans: 0.0,
         })
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> GameAction {
+        // Pendant le fondu entre écrans, les touches sont ignorées (évite les doubles appuis)
+        if fx::fx_enabled() && self.trans > 0.0 {
+            return GameAction::Continue;
+        }
         match key.code {
             KeyCode::Char('q') => {
                 if self.current_menu == MenuState::Main {
@@ -443,6 +452,8 @@ impl MainMenu {
             }
         }
 
+        self.trans = 1.0;
+
         // Sauvegarder le menu actuel dans la pile
         self.menu_history.push(self.current_menu.clone());
         // Passer au nouveau menu
@@ -452,6 +463,7 @@ impl MainMenu {
     }
 
     fn go_back(&mut self) {
+        self.trans = 1.0;
         // Remonter d'un niveau en utilisant la pile
         if let Some(previous_menu) = self.menu_history.pop() {
             self.current_menu = previous_menu;
@@ -671,6 +683,11 @@ impl MainMenu {
     pub fn animate(&mut self, dt: std::time::Duration) {
         let dt = dt.as_secs_f32().min(0.1);
         self.time += dt;
+        self.trans = if fx::fx_enabled() {
+            (self.trans - dt / SCREEN_FADE).max(0.0)
+        } else {
+            0.0
+        };
         let target = self.selected_index as f32;
         if !fx::fx_enabled() || self.prev_menu != self.current_menu {
             self.sel_pos = target;
@@ -827,6 +844,11 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
 
     // Poussières d'ambiance, par-dessus tout mais seulement sur les cellules vides
     menu_ui::draw_motes(frame.buffer_mut(), area, app.time);
+
+    // Fondu d'entrée du nouvel écran
+    if app.trans > 0.0 {
+        fx::fade_to_black(frame.buffer_mut(), area, app.trans * 0.85);
+    }
 }
 
 fn draw_main_options(frame: &mut Frame, area: Rect, app: &mut MainMenu) {
@@ -1325,17 +1347,34 @@ mod tests {
                 term.draw(|f| menu.draw(f)).unwrap();
             }
             // Main → Games → Down → back, redessiné à chaque étape
-            menu.handle_key(KeyEvent::from(KeyCode::Enter));
-            menu.handle_key(KeyEvent::from(KeyCode::Enter));
-            menu.handle_key(KeyEvent::from(KeyCode::Down));
-            menu.animate(Duration::from_millis(16));
-            term.draw(|f| menu.draw(f)).unwrap();
-            menu.handle_key(KeyEvent::from(KeyCode::Esc));
-            menu.handle_key(KeyEvent::from(KeyCode::Esc));
+            for k in [KeyCode::Enter, KeyCode::Enter, KeyCode::Down] {
+                menu.handle_key(KeyEvent::from(k));
+                menu.animate(Duration::from_millis(100));
+                term.draw(|f| menu.draw(f)).unwrap();
+            }
+            for _ in 0..2 {
+                menu.handle_key(KeyEvent::from(KeyCode::Esc));
+                menu.animate(Duration::from_millis(100));
+            }
         }
 
+        // Un appui pendant le fondu entre écrans est ignoré, puis les touches repassent
+        menu.handle_key(KeyEvent::from(KeyCode::Enter)); // Main → Games
+        assert!(menu.trans > 0.0);
+        let before = menu.selected_index;
+        menu.handle_key(KeyEvent::from(KeyCode::Down));
+        assert_eq!(
+            menu.selected_index, before,
+            "touche non ignorée pendant le fondu"
+        );
+        menu.animate(Duration::from_millis(100));
+        assert_eq!(menu.trans, 0.0);
+        menu.handle_key(KeyEvent::from(KeyCode::Esc));
+        menu.animate(Duration::from_millis(100));
+        assert_eq!(menu.current_menu, MenuState::Main);
+
         // Le glissement converge vers l'élément sélectionné sans le dépasser
-        menu.animate(Duration::from_millis(16));
+        menu.animate(Duration::from_millis(100));
         menu.handle_key(KeyEvent::from(KeyCode::Down));
         menu.handle_key(KeyEvent::from(KeyCode::Down));
         menu.animate(Duration::from_millis(16));

@@ -9,7 +9,7 @@
 - feat: particle system with lifetime, gravity and RGB colour gradients, dynamic palettes in every game
 - feat: screen shake, glow and lighting effects
 - feat(menu): animated main menu at 60 fps: colour-wave TERMPLAY banner with glow, gliding selector with pulsing chevron, game preview cards (controls, best score) and subtle ambient particles (off with `--no-fx`)
-- feat: smooth fade transitions between the menu and games
+- feat(ui): smooth fade transitions between the menu and games, and between menu screens (~90 ms, inputs ignored meanwhile, instant with `--no-fx`)
 - feat: per-game effects: Snake gradient and food bursts, Tetris ghost piece and line-clear flash, Pong neon borders and goal bursts, Breakout glowing paddle and exploding bricks, 2048 sliding tiles and merge pops, Minesweeper wave reveal and explosions, Game of Life age heatmap
 
 ### CLI & Accessibility
