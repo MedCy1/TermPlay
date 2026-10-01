@@ -87,7 +87,7 @@ impl PieceType {
     }
 
     fn random() -> Self {
-        let mut rng = rand::rng();
+        let mut rng = crate::engine::rng::game_rng();
         match rng.random_range(0..7) {
             0 => PieceType::I,
             1 => PieceType::O,

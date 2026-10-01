@@ -2,3 +2,4 @@
 pub mod braille;
 pub mod fx;
 pub mod particles;
+pub mod rng;

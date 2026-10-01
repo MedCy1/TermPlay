@@ -134,7 +134,7 @@ impl Game2048 {
             return;
         }
 
-        let mut rng = rand::rng();
+        let mut rng = crate::engine::rng::game_rng();
         let &(row, col) = empty_cells.choose(&mut rng).unwrap();
 
         // 90% chance pour 2, 10% chance pour 4

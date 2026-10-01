@@ -90,7 +90,7 @@ impl SnakeGame {
     }
 
     fn generate_food(snake: &[Position], width: u16, height: u16) -> Position {
-        let mut rng = rand::rng();
+        let mut rng = crate::engine::rng::game_rng();
         loop {
             let food = Position {
                 x: rng.random_range(0..width),

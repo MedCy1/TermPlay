@@ -79,6 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }));
     let cli = Cli::parse();
     engine::fx::init(cli.no_fx, cli.no_color);
+    engine::rng::init();
     let mut app = App::new();
 
     match cli.command {

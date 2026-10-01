@@ -50,7 +50,7 @@ pub struct Ball {
 
 impl Ball {
     fn new(width: f32, height: f32) -> Self {
-        let mut rng = rand::rng();
+        let mut rng = crate::engine::rng::game_rng();
         let angle = rng.random_range(-std::f32::consts::PI / 4.0..std::f32::consts::PI / 4.0);
         let speed = 0.8;
         let direction = if rng.random_bool(0.5) { 1.0 } else { -1.0 };
@@ -270,7 +270,7 @@ impl PongGame {
             let diff = ball_center_y - paddle_center_y;
 
             // L'IA n'est pas parfaite, elle a une vitesse limitée et parfois rate
-            let mut rng = rand::rng();
+            let mut rng = crate::engine::rng::game_rng();
             let _reaction_speed = self.ai_difficulty * self.player2.speed;
 
             // Zone morte élargie pour éviter les mouvements épileptiques

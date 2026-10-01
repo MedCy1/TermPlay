@@ -213,7 +213,7 @@ impl GameOfLife {
 
     fn randomize_grid(&mut self) {
         self.reset_fx();
-        let mut rng = rand::rng();
+        let mut rng = crate::engine::rng::game_rng();
         for row in 0..self.grid_height {
             for col in 0..self.grid_width {
                 self.grid[row][col] = if rng.random_bool(0.3) {

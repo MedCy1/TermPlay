@@ -123,7 +123,7 @@ impl MinesweeperGame {
             return;
         }
 
-        let mut rng = rand::rng();
+        let mut rng = crate::engine::rng::game_rng();
         let mut mines_placed = 0;
 
         while mines_placed < MINE_COUNT {
