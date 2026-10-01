@@ -10,6 +10,7 @@ use crate::music::{
 };
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
+    buffer::Buffer,
     layout::{Alignment, Constraint, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
@@ -62,12 +63,15 @@ pub struct MainMenu {
     sel_pos: f32, // position (fractionnaire) de la barre de sélection
     prev_menu: MenuState,
     prev_sel: usize,
-    card_t: f32, // 0 → 1 après un changement de sélection (éclaire la carte)
-    trans: f32,  // 1 → 0 après un changement d'écran: fondu d'entrée + entrées ignorées
+    card_t: f32,  // 0 → 1 après un changement de sélection (éclaire la carte)
+    trans: f32,   // 1 → 0 pendant le glissement entre écrans (entrées ignorées)
+    last: Buffer, // dernier écran affiché (snapshot de l'écran sortant)
+    slide_old: Option<Buffer>,
+    slide_dir: i32, // +1: l'ancien écran part à gauche (avancer), -1: à droite (retour)
 }
 
-/// Durée du fondu entre deux écrans du menu (assez court pour rester réactif au clavier).
-const SCREEN_FADE: f32 = 0.09;
+/// Durée du glissement entre deux écrans du menu (lisible, mais vif au clavier).
+const SCREEN_FADE: f32 = 0.13;
 
 #[derive(Debug, Clone)]
 pub struct MusicTrack {
@@ -199,6 +203,9 @@ impl MainMenu {
             prev_sel: 0,
             card_t: 1.0,
             trans: 0.0,
+            last: Buffer::default(),
+            slide_old: None,
+            slide_dir: 1,
         })
     }
 
@@ -441,6 +448,15 @@ impl MainMenu {
     }
 
     /// Navigue vers un nouveau menu en sauvegardant l'état actuel dans la pile
+    /// Démarre un glissement depuis le dernier écran affiché (sans effet avec `--no-fx`).
+    fn start_slide(&mut self, dir: i32) {
+        if fx::fx_enabled() && !self.last.content.is_empty() {
+            self.slide_old = Some(self.last.clone());
+            self.slide_dir = dir;
+            self.trans = 1.0;
+        }
+    }
+
     fn navigate_to(&mut self, new_menu: MenuState) {
         // Recharger les scores si on entre dans le menu High Scores
         if matches!(
@@ -452,7 +468,7 @@ impl MainMenu {
             }
         }
 
-        self.trans = 1.0;
+        self.start_slide(1);
 
         // Sauvegarder le menu actuel dans la pile
         self.menu_history.push(self.current_menu.clone());
@@ -463,7 +479,7 @@ impl MainMenu {
     }
 
     fn go_back(&mut self) {
-        self.trans = 1.0;
+        self.start_slide(-1);
         // Remonter d'un niveau en utilisant la pile
         if let Some(previous_menu) = self.menu_history.pop() {
             self.current_menu = previous_menu;
@@ -845,9 +861,37 @@ fn draw_main_menu(frame: &mut Frame, app: &mut MainMenu) {
     // Poussières d'ambiance, par-dessus tout mais seulement sur les cellules vides
     menu_ui::draw_motes(frame.buffer_mut(), area, app.time);
 
-    // Fondu d'entrée du nouvel écran
-    if app.trans > 0.0 {
-        fx::fade_to_black(frame.buffer_mut(), area, app.trans * 0.85);
+    // Glissement entre écrans: l'ancien sort, le nouveau entre (ease-out), sans passer par le noir
+    let buf = frame.buffer_mut();
+    match (&app.slide_old, app.trans > 0.0) {
+        (Some(old), true) if old.area == buf.area => {
+            let w = buf.area.width as usize;
+            let p = 1.0 - app.trans;
+            let off = (((1.0 - (1.0 - p) * (1.0 - p)) * w as f32).round() as usize).min(w);
+            let new = buf.content.clone();
+            for (i, cell) in buf.content.iter_mut().enumerate() {
+                let x = i % w;
+                let src = if app.slide_dir > 0 {
+                    if x + off < w {
+                        Some(&old.content[i + off])
+                    } else {
+                        Some(&new[i + off - w])
+                    }
+                } else if x >= off {
+                    Some(&old.content[i - off])
+                } else {
+                    Some(&new[i + w - off])
+                };
+                if let Some(c) = src {
+                    *cell = c.clone();
+                }
+            }
+        }
+        (_, false) => {
+            app.slide_old = None;
+            app.last.clone_from(buf); // réutilise l'allocation
+        }
+        _ => {}
     }
 }
 
@@ -1350,10 +1394,12 @@ mod tests {
             for k in [KeyCode::Enter, KeyCode::Enter, KeyCode::Down] {
                 menu.handle_key(KeyEvent::from(k));
                 menu.animate(Duration::from_millis(100));
+                menu.animate(Duration::from_millis(100));
                 term.draw(|f| menu.draw(f)).unwrap();
             }
             for _ in 0..2 {
                 menu.handle_key(KeyEvent::from(KeyCode::Esc));
+                menu.animate(Duration::from_millis(100));
                 menu.animate(Duration::from_millis(100));
             }
         }
@@ -1368,12 +1414,15 @@ mod tests {
             "touche non ignorée pendant le fondu"
         );
         menu.animate(Duration::from_millis(100));
+        menu.animate(Duration::from_millis(100));
         assert_eq!(menu.trans, 0.0);
         menu.handle_key(KeyEvent::from(KeyCode::Esc));
+        menu.animate(Duration::from_millis(100));
         menu.animate(Duration::from_millis(100));
         assert_eq!(menu.current_menu, MenuState::Main);
 
         // Le glissement converge vers l'élément sélectionné sans le dépasser
+        menu.animate(Duration::from_millis(100));
         menu.animate(Duration::from_millis(100));
         menu.handle_key(KeyEvent::from(KeyCode::Down));
         menu.handle_key(KeyEvent::from(KeyCode::Down));
@@ -1384,5 +1433,27 @@ mod tests {
         }
         assert!((menu.sel_pos - 2.0).abs() < 0.01);
         assert_eq!(menu.card_t, 1.0);
+    }
+
+    #[test]
+    fn slide_mixes_old_and_new_screens_without_black() {
+        let registry = GameRegistry::new();
+        let mut menu = MainMenu::new(registry.list_games()).expect("menu");
+        let mut term = Terminal::new(TestBackend::new(100, 30)).unwrap();
+        menu.animate(Duration::from_millis(100));
+        menu.animate(Duration::from_millis(100));
+        term.draw(|f| menu.draw(f)).unwrap();
+        let before = term.backend().buffer().clone();
+        menu.handle_key(KeyEvent::from(KeyCode::Enter)); // → Games (glissement)
+        menu.animate(Duration::from_millis(40));
+        term.draw(|f| menu.draw(f)).unwrap();
+        let mid = term.backend().buffer().clone();
+        // la bordure gauche de l'ancien écran a bougé, et rien n'est devenu noir pur
+        assert_ne!(before, mid);
+        assert!(mid.content().iter().all(|c| c.bg != Color::Black));
+        menu.animate(Duration::from_millis(100));
+        menu.animate(Duration::from_millis(100));
+        term.draw(|f| menu.draw(f)).unwrap();
+        assert!(menu.slide_old.is_none());
     }
 }
