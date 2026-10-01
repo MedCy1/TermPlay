@@ -144,22 +144,25 @@ pub fn rows(tab: usize, cfg: &GameConfig, audio: (f32, f32, f32, bool, bool)) ->
     }
 }
 
-/// `[██████░░░░] 60%`, du vert au jaune puis au rouge selon le niveau.
+/// `━━━━━━●─────  60%`: trait fin dégradé vert → jaune, curseur `●`, reste en trait sombre.
 fn slider_spans(v: f32) -> Vec<Span<'static>> {
+    const W: usize = 14;
     let v = v.clamp(0.0, 1.0);
-    let filled = (v * 10.0).round() as usize;
-    let mut spans = vec![Span::styled("[", Style::new().fg(Color::Gray))];
-    for i in 0..10 {
-        if i < filled {
-            let c = fx::lerp((80, 230, 120), (255, 200, 60), i as f32 / 9.0);
-            spans.push(Span::styled("█", Style::new().fg(fx::color(c))));
+    let pos = (v * (W - 1) as f32).round() as usize;
+    let mut spans = Vec::with_capacity(W + 1);
+    for i in 0..W {
+        spans.push(if i < pos {
+            let c = fx::lerp((80, 230, 120), (255, 200, 60), i as f32 / (W - 1) as f32);
+            Span::styled("━", Style::new().fg(fx::color(c)))
+        } else if i == pos {
+            let c = fx::lerp((80, 230, 120), (255, 200, 60), v);
+            Span::styled("●", Style::new().fg(fx::color(c)).bold())
         } else {
-            spans.push(Span::styled("░", Style::new().fg(Color::Rgb(60, 70, 85))));
-        }
+            Span::styled("─", Style::new().fg(Color::Rgb(60, 70, 85)))
+        });
     }
-    spans.push(Span::styled("] ", Style::new().fg(Color::Gray)));
     spans.push(Span::styled(
-        format!("{:>3}%", (v * 100.0).round() as u32),
+        format!("  {:>3}%", (v * 100.0).round() as u32),
         Style::new().white().bold(),
     ));
     spans
@@ -293,7 +296,12 @@ mod tests {
             .iter()
             .map(|s| s.content.as_ref())
             .collect();
-        assert_eq!(text, "[██████░░░░]  60%");
+        assert_eq!(text, "━━━━━━━━●─────   60%");
+        let zero: String = slider_spans(0.0)
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
+        assert!(zero.starts_with("●─"));
         let full: String = slider_spans(1.0)
             .iter()
             .map(|s| s.content.as_ref())
