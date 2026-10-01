@@ -1,5 +1,10 @@
 use crate::audio::{AudioManager, SoundEffect};
 use crate::core::{Game, GameAction};
+use crate::engine::{
+    braille::Braille,
+    fx::{self, Rgb, Shake},
+    particles::Particles,
+};
 use crate::highscores::{GameData, HighScoreManager, Score};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
@@ -98,18 +103,18 @@ pub struct Brick {
     x: u16,
     y: u16,
     destroyed: bool,
-    color: Color,
+    color: Rgb,
 }
 
 impl Brick {
     fn new(x: u16, y: u16, row: usize) -> Self {
         let color = match row {
-            0 => Color::Red,
-            1 => Color::Yellow,
-            2 => Color::Green,
-            3 => Color::Cyan,
-            4 => Color::Blue,
-            _ => Color::Magenta,
+            0 => (235, 64, 64),
+            1 => (240, 200, 60),
+            2 => (80, 210, 90),
+            3 => (70, 210, 220),
+            4 => (80, 120, 240),
+            _ => (210, 90, 220),
         };
 
         Self {
@@ -138,6 +143,17 @@ pub struct BreakoutGame {
     highscore_manager: HighScoreManager,
     start_time: std::time::Instant,
     score_saved: bool,
+
+    // Effets
+    particles: Particles,
+    shake: Shake,
+    trail: Braille,
+    fade: f32,
+    paddle_flash: f32,
+    brick_flash: [[f32; BRICK_COLS]; BRICK_ROWS],
+    prev_ball: (f32, f32), // position avant le dernier tick (interpolation)
+    last_stamp: (f32, f32),
+    since_tick: f32,
 }
 
 impl BreakoutGame {
@@ -169,6 +185,16 @@ impl BreakoutGame {
             highscore_manager: HighScoreManager::default(),
             start_time: std::time::Instant::now(),
             score_saved: false,
+
+            particles: Particles::new(256, 25.0),
+            shake: Shake::default(),
+            trail: Braille::new(FIELD_WIDTH, FIELD_HEIGHT),
+            fade: 0.0,
+            paddle_flash: 0.0,
+            brick_flash: [[0.0; BRICK_COLS]; BRICK_ROWS],
+            prev_ball: (ball.x, ball.y),
+            last_stamp: (ball.x, ball.y),
+            since_tick: 0.0,
         }
     }
 
@@ -224,6 +250,12 @@ impl BreakoutGame {
         count
     }
 
+    fn wall_spark(&mut self, x: f32) {
+        let c = (150, 200, 255);
+        self.particles
+            .burst(x, self.ball.y + 0.5, 5, 6.0, c, fx::lerp(c, (0, 0, 0), 0.8));
+    }
+
     fn check_collisions(&mut self) {
         // Collision avec les murs
         if self.ball.x <= 0.0 {
@@ -231,16 +263,27 @@ impl BreakoutGame {
             self.ball.bounce_x();
             // Son de collision avec les murs (réutilise le son Pong)
             self.audio.play_sound(SoundEffect::PongWallHit);
+            self.wall_spark(0.0);
         }
         if self.ball.x >= FIELD_WIDTH as f32 - 1.0 {
             self.ball.x = FIELD_WIDTH as f32 - 1.0;
             self.ball.bounce_x();
             self.audio.play_sound(SoundEffect::PongWallHit);
+            self.wall_spark(FIELD_WIDTH as f32);
         }
         if self.ball.y <= 0.0 {
             self.ball.y = 0.0;
             self.ball.bounce_y();
             self.audio.play_sound(SoundEffect::PongWallHit);
+            let c = (150, 200, 255);
+            self.particles.burst(
+                self.ball.x + 0.5,
+                0.0,
+                5,
+                6.0,
+                c,
+                fx::lerp(c, (0, 0, 0), 0.8),
+            );
         }
 
         // Collision avec la raquette
@@ -259,14 +302,24 @@ impl BreakoutGame {
 
             // Son de collision avec la raquette
             self.audio.play_sound(SoundEffect::BreakoutPaddleHit);
+            self.paddle_flash = 1.0;
+            self.particles.spray(
+                self.ball.x + 0.5,
+                self.paddle.y,
+                16,
+                9.0,
+                (255, 255, 230),
+                (60, 100, 255),
+                5.0,
+            );
         }
 
         // Collision avec les briques
         let ball_x = self.ball.x as u16;
         let ball_y = self.ball.y as u16;
 
-        for row in &mut self.bricks {
-            for brick in row {
+        for (r, row) in self.bricks.iter_mut().enumerate() {
+            for (c, brick) in row.iter_mut().enumerate() {
                 if brick.destroyed {
                     continue;
                 }
@@ -278,6 +331,19 @@ impl BreakoutGame {
                     && ball_y < brick.y + BRICK_HEIGHT
                 {
                     brick.destroyed = true;
+                    if brick.y <= 4 {
+                        // Rangées du haut (les plus rémunératrices): micro-shake bref
+                        self.shake.kick(0.4);
+                    }
+                    self.brick_flash[r][c] = 1.0;
+                    let (bx, by) = (
+                        brick.x as f32 + BRICK_WIDTH as f32 / 2.0,
+                        brick.y as f32 + 0.5,
+                    );
+                    let dark = fx::lerp(brick.color, (0, 0, 0), 0.8);
+                    self.particles.burst(bx, by, 22, 10.0, brick.color, dark);
+                    self.particles
+                        .spray(bx, by, 8, 6.0, (255, 255, 255), brick.color, 4.0);
                     self.score += 10;
                     self.ball.bounce_y();
 
@@ -291,6 +357,15 @@ impl BreakoutGame {
         // Vérifier si la balle tombe en bas
         if self.ball.y >= FIELD_HEIGHT as f32 {
             self.lives -= 1;
+            self.shake.kick(2.0);
+            self.particles.burst(
+                self.ball.x + 0.5,
+                FIELD_HEIGHT as f32 - 1.0,
+                30,
+                12.0,
+                (255, 120, 60),
+                (60, 0, 0),
+            );
             if self.lives == 0 {
                 self.state = GameState::GameOver;
                 // Son de game over
@@ -306,6 +381,7 @@ impl BreakoutGame {
 
         // Vérifier la victoire
         if self.all_bricks_destroyed() {
+            self.shake.kick(0.4);
             self.state = GameState::Victory;
             // Musique de victoire
             self.audio.stop_music();
@@ -329,12 +405,19 @@ impl BreakoutGame {
     }
 
     fn update_ball(&mut self) {
+        self.prev_ball = (self.ball.x, self.ball.y);
+        self.since_tick = 0.0;
         if self.ball_stuck {
             // La balle suit la raquette
             self.ball.x = self.paddle.x + PADDLE_WIDTH as f32 / 2.0;
         } else {
             self.ball.update();
             self.check_collisions();
+        }
+        // Téléportation (reset après une vie perdue): pas d'interpolation ni de traînée
+        let (px, py) = self.prev_ball;
+        if (self.ball.x - px).hypot(self.ball.y - py) > 3.0 {
+            self.prev_ball = (self.ball.x, self.ball.y);
         }
     }
 
@@ -497,6 +580,41 @@ impl Game for BreakoutGame {
     fn tick_rate(&self) -> Duration {
         Duration::from_millis(50)
     }
+
+    fn frame_time(&self) -> Option<Duration> {
+        Some(Duration::from_millis(16))
+    }
+
+    fn animate(&mut self, dt: Duration) {
+        let dt = dt.as_secs_f32().min(0.1);
+        self.particles.update(dt);
+        self.shake.update(dt);
+        self.paddle_flash = (self.paddle_flash - dt / 0.25).max(0.0);
+        for f in self.brick_flash.iter_mut().flatten() {
+            *f = (*f - dt / 0.15).max(0.0);
+        }
+        if self.state == GameState::GameOver {
+            self.fade = (self.fade + dt / 0.8).min(1.0);
+        } else {
+            self.fade = 0.0;
+        }
+
+        // Balle interpolée entre deux ticks: affichage fluide, logique inchangée
+        self.since_tick += dt;
+        let a = (self.since_tick / self.tick_rate().as_secs_f32()).min(1.0);
+        let (px, py) = self.prev_ball;
+        let (x, y) = (
+            px + (self.ball.x - px) * a + 0.5,
+            py + (self.ball.y - py) * a + 0.5,
+        );
+        if (x - self.last_stamp.0).hypot(y - self.last_stamp.1) > 3.0 {
+            self.last_stamp = (x, y);
+        }
+        self.trail.decay(dt, 0.28);
+        self.trail
+            .line(self.last_stamp.0, self.last_stamp.1, x, y, 1.5);
+        self.last_stamp = (x, y);
+    }
 }
 
 fn draw_breakout_game(frame: &mut ratatui::Frame, game: &BreakoutGame) {
@@ -558,69 +676,61 @@ fn draw_breakout_game(frame: &mut ratatui::Frame, game: &BreakoutGame) {
     // Calculer l'offset pour centrer le terrain
     let field_start_x = inner_area.x + (inner_area.width.saturating_sub(FIELD_WIDTH)) / 2;
     let field_start_y = inner_area.y + (inner_area.height.saturating_sub(FIELD_HEIGHT)) / 2;
+    let (sx, sy) = game.shake.offset();
+    let ox = field_start_x as i32 + sx;
+    let oy = field_start_y as i32 + sy;
+    let buf = frame.buffer_mut();
 
-    // Dessiner les briques
-    for row in &game.bricks {
-        for brick in row {
+    // Briques (une brique détruite reste un instant en flash blanc)
+    for (r, row) in game.bricks.iter().enumerate() {
+        for (c, brick) in row.iter().enumerate() {
+            let f = game.brick_flash[r][c];
+            let col = match (brick.destroyed, f > 0.0) {
+                (false, _) => brick.color,
+                (true, true) => fx::lerp(brick.color, (255, 255, 255), f),
+                (true, false) => continue,
+            };
+            let (bx, by) = (ox + brick.x as i32, oy + brick.y as i32);
             if !brick.destroyed {
-                let brick_x = field_start_x + brick.x;
-                let brick_y = field_start_y + brick.y;
-
-                // Vérifier les limites avant de dessiner
-                if brick_x + BRICK_WIDTH <= inner_area.x + inner_area.width
-                    && brick_y + BRICK_HEIGHT <= inner_area.y + inner_area.height
-                {
-                    let brick_area = Rect {
-                        x: brick_x,
-                        y: brick_y,
-                        width: BRICK_WIDTH,
-                        height: BRICK_HEIGHT,
-                    };
-
-                    let brick_widget = Paragraph::new("█".repeat(BRICK_WIDTH as usize))
-                        .style(Style::default().fg(brick.color).bold());
-
-                    frame.render_widget(brick_widget, brick_area);
-                }
+                fx::glow(buf, bx + BRICK_WIDTH as i32 / 2, by, 2, brick.color, 0.12);
+            }
+            for dx in 0..BRICK_WIDTH as i32 {
+                fx::put(buf, bx + dx, by, '█', col);
             }
         }
     }
 
-    // Dessiner la raquette
-    let paddle_x = field_start_x + game.paddle.x as u16;
-    let paddle_y = field_start_y + game.paddle.y as u16;
-
-    if paddle_x + PADDLE_WIDTH <= inner_area.x + inner_area.width
-        && paddle_y + PADDLE_HEIGHT <= inner_area.y + inner_area.height
-    {
-        let paddle_area = Rect {
-            x: paddle_x,
-            y: paddle_y,
-            width: PADDLE_WIDTH,
-            height: PADDLE_HEIGHT,
-        };
-
-        let paddle_widget = Paragraph::new("═".repeat(PADDLE_WIDTH as usize))
-            .style(Style::default().fg(Color::White).bold());
-
-        frame.render_widget(paddle_widget, paddle_area);
+    // Raquette: grosse lueur, flash au rebond, ombre portée sous la barre
+    let (pw, py) = (PADDLE_WIDTH as i32, game.paddle.y as i32);
+    let px = game.paddle.x as i32;
+    let pf = game.paddle_flash;
+    let glow_c = fx::lerp((90, 140, 255), (255, 255, 255), pf);
+    fx::glow(buf, ox + px + pw / 2, oy + py, 5, glow_c, 0.6 + 0.35 * pf);
+    for dx in 0..pw {
+        let t = (dx as f32 / (pw - 1) as f32 - 0.5).abs() * 2.0; // bords plus sombres
+        let base = fx::lerp((255, 255, 255), (90, 140, 255), t * t);
+        fx::put(
+            buf,
+            ox + px + dx,
+            oy + py,
+            '█',
+            fx::lerp(base, (255, 255, 255), pf),
+        );
+        fx::put(
+            buf,
+            ox + px + dx,
+            oy + py + 1,
+            '▀',
+            fx::lerp((20, 30, 70), glow_c, 0.4 + 0.5 * pf),
+        );
     }
 
-    // Dessiner la balle
-    let ball_x = field_start_x + game.ball.x as u16;
-    let ball_y = field_start_y + game.ball.y as u16;
+    // Balle (Braille) + traînée
+    game.trail.draw(buf, ox, oy, (255, 235, 130), (90, 60, 20));
+    game.particles.draw(buf, (ox, oy));
 
-    if ball_x < inner_area.x + inner_area.width && ball_y < inner_area.y + inner_area.height {
-        let ball_area = Rect {
-            x: ball_x,
-            y: ball_y,
-            width: 1,
-            height: 1,
-        };
-
-        let ball_widget = Paragraph::new("●").style(Style::default().fg(Color::Yellow).bold());
-
-        frame.render_widget(ball_widget, ball_area);
+    if game.state == GameState::GameOver {
+        fx::fade_to_black(buf, inner_area, game.fade * 0.7);
     }
 
     // === FOOTER ===
